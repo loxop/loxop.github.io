@@ -1,1 +1,89 @@
-<!DOCTYPE html><html><body style="margin:0;background:black;height:100vh"></body></html>
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>Black Screen</title>
+  <style>
+    html, body { height: 100%; margin: 0; background: #000; }
+    :root { --clock-color: #00ff7f; }
+    /* 중앙 상단 정렬 */
+    #clock {
+      position: absolute;
+      top: 6vh; /* 화면 상단에서 조금 내림 */
+      left: 50%; transform: translateX(-50%);
+      text-align: center;
+      display: none; /* 기본은 숨김 (완전 블랙) */
+      user-select: none;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Apple SD Gothic Neo, "맑은 고딕", sans-serif;
+    }
+    #time { color: var(--clock-color); line-height: 1; font-weight: 700; font-size: clamp(56px, 12vw, 160px); }
+    #date { color: var(--clock-color); opacity: 0.95; margin-top: 8px; font-size: clamp(14px, 2vw, 28px); }
+  </style>
+</head>
+<body>
+  <!-- 디지털 시계 (C 키로 토글) -->
+  <div id="clock" aria-hidden="true">
+    <div id="time">00:00:00</div>
+    <div id="date">1970-01-01</div>
+  </div>
+
+  <script>
+    // ===== Fullscreen (F) =====
+    async function toggleFullscreen() {
+      try {
+        if (!document.fullscreenElement) {
+          await document.documentElement.requestFullscreen();
+        } else {
+          await document.exitFullscreen();
+        }
+      } catch (_) { /* no-op */ }
+    }
+
+    // ===== Clock (C) =====
+    const clock = document.getElementById('clock');
+    const elTime = document.getElementById('time');
+    const elDate = document.getElementById('date');
+
+    function pad(n){ return String(n).padStart(2, '0'); }
+    function updateClock(){
+      const d = new Date();
+      const hh = pad(d.getHours());
+      const mm = pad(d.getMinutes());
+      const ss = pad(d.getSeconds());
+      elTime.textContent = `${hh}:${mm}:${ss}`;
+      const yyyy = d.getFullYear();
+      const mo = pad(d.getMonth()+1);
+      const da = pad(d.getDate());
+      elDate.textContent = `${yyyy}-${mo}-${da}`;
+    }
+
+    let clockVisible = false;
+    let timerId = null;
+    function toggleClock(){
+      clockVisible = !clockVisible;
+      clock.style.display = clockVisible ? 'block' : 'none';
+      clock.setAttribute('aria-hidden', clockVisible ? 'false' : 'true');
+      if (clockVisible) {
+        updateClock();
+        // 다음 초 경계에 맞춰 1초 간격으로 업데이트
+        const drift = 1000 - (Date.now() % 1000);
+        setTimeout(() => {
+          updateClock();
+          clearInterval(timerId);
+          timerId = setInterval(updateClock, 1000);
+        }, drift);
+      } else {
+        clearInterval(timerId);
+      }
+    }
+
+    // ===== Key bindings =====
+    window.addEventListener('keydown', (e) => {
+      const k = e.key.toLowerCase();
+      if (k === 'f') { e.preventDefault(); toggleFullscreen(); }
+      if (k === 'c') { e.preventDefault(); toggleClock(); }
+    });
+  </script>
+</body>
+</html>
+
