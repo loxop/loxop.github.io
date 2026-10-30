@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>■</title>
+  <title>⬛</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect width=%2716%27 height=%2716%27 fill=%27%23000%27/%3E%3C/svg%3E" />
   <style>
     html, body { height: 100%; margin: 0; background: #000; overflow: hidden; }
@@ -451,9 +451,10 @@
     });
     editRemain.addEventListener('blur', () => closeEdit(true));
 
-    let alarmTimer = null;
+    let alarmTimer = null, notif = null;
     function stopAlarm() {
       clearTimeout(alarmTimer); alarmTimer = null;
+      if (notif) { try { notif.close(); } catch (_) {} notif = null; }
       if (flashAnim) { flashAnim.cancel(); flashAnim = null; }
     }
     function fireAlarm() {
@@ -469,7 +470,11 @@
       stopAlarm();
       fireAlarm();
       if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
-        try { new Notification('타이머 종료', { body: state.dur + '분이 지났습니다.', silent: true }); } catch (_) {}
+        try {
+          notif = new Notification('타이머 종료', { body: state.dur + '분이 지났습니다.', silent: true, tag: 'bs-timer' });
+          notif.onclick = () => { window.focus(); stopAlarm(); };
+          setTimeout(() => { if (notif) { notif.close(); notif = null; } }, 8000);
+        } catch (_) {}
       }
     }
 
