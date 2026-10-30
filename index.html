@@ -456,11 +456,11 @@
       if (flashAnim) { flashAnim.cancel(); flashAnim = null; }
     }
     function fireAlarm() {
-      playSound(state.sound);
-      runFlash();
+      const len = playSound(state.sound); // 소리 길이(초), 없음이면 0
+      if (!flashAnim || flashAnim.playState !== 'running') runFlash(); // 밝아짐은 진행 중이면 끊지 않음
       if (state.repeat === 'loop') {
-        // 밝아짐이 끝난 뒤 잠깐 쉬고 다시 (최소 8초 주기)
-        const period = Math.max(8, +state.flashDur + 3) * 1000;
+        // 소리가 끝나면 0.6초 뒤 바로 다시. 소리가 없으면 밝아짐 한 사이클 뒤
+        const period = len ? (len + 0.6) * 1000 : (+state.flashDur + 1) * 1000;
         alarmTimer = setTimeout(() => { if (T.done) fireAlarm(); }, period);
       }
     }
@@ -526,9 +526,11 @@
     }
     const N = (name) => ({ C4: 261.63, D4: 293.66, E4: 329.63, G4: 392.0, A4: 440.0, C5: 523.25, D5: 587.33, E5: 659.25, G5: 783.99, A5: 880.0, C6: 1046.5, D6: 1174.7, E6: 1318.5, G6: 1568.0 })[name];
 
+    // 각 소리의 실제 울림 길이(초). 반복 간격 계산에 사용
+    const SOUND_LEN = { bowl: 3.8, wind: 3.9, marimba: 1.5, kalimba: 2.1, bell: 3.9, epiano: 2.4 };
     function playSound(kind) {
-      if (kind === 'none') return;
-      const ctx = ensureAudio(); if (!ctx) return;
+      if (kind === 'none') return 0;
+      const ctx = ensureAudio(); if (!ctx) return 0;
       const master = ctx.createGain();
       master.gain.value = Math.pow(state.vol / 100, 1.6) * 0.5; // 음량 커브 (낮은 값에서 더 조용하게)
       const soft = ctx.createBiquadFilter(); soft.type = 'lowpass'; soft.frequency.value = 7000; // 귀 아픈 고역 정리
@@ -579,6 +581,7 @@
         const p = [[1, 1, 1], [2, 0.22, 0.5], [3, 0.07, 0.35], [1.002, 0.4, 1]];
         [['C4', 0], ['E4', 0.18], ['G4', 0.36], ['C5', 0.54]].forEach(([n, d]) => tone(ctx, out, t + d, N(n), p, 3.2, 0.45, 0.012));
       }
+      return SOUND_LEN[kind] || 2;
     }
 
     // ===== 모드 전환 =====
