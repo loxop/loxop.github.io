@@ -37,16 +37,16 @@
     #date { margin-top: 0.35em; opacity: 0.85; font-size: calc(clamp(14px, 2.2vmin, 40px) * var(--clock-scale)); }
     #date.hidden { display: none; }
 
-    /* 위치 (pos-1 ~ pos-9, 넘버패드 배열) */
-    .pos-7 { grid-area: 1/1; justify-self: start;  align-self: start;  text-align: left;  }
-    .pos-8 { grid-area: 1/2; justify-self: center; align-self: start;  text-align: center;}
-    .pos-9 { grid-area: 1/3; justify-self: end;    align-self: start;  text-align: right; }
+    /* 위치 (pos-1 ~ pos-9, 좌상단부터 행 순서) */
+    .pos-1 { grid-area: 1/1; justify-self: start;  align-self: start;  text-align: left;  }
+    .pos-2 { grid-area: 1/2; justify-self: center; align-self: start;  text-align: center;}
+    .pos-3 { grid-area: 1/3; justify-self: end;    align-self: start;  text-align: right; }
     .pos-4 { grid-area: 2/1; justify-self: start;  align-self: center; text-align: left;  }
     .pos-5 { grid-area: 2/2; justify-self: center; align-self: center; text-align: center;}
     .pos-6 { grid-area: 2/3; justify-self: end;    align-self: center; text-align: right; }
-    .pos-1 { grid-area: 3/1; justify-self: start;  align-self: end;    text-align: left;  }
-    .pos-2 { grid-area: 3/2; justify-self: center; align-self: end;    text-align: center;}
-    .pos-3 { grid-area: 3/3; justify-self: end;    align-self: end;    text-align: right; }
+    .pos-7 { grid-area: 3/1; justify-self: start;  align-self: end;    text-align: left;  }
+    .pos-8 { grid-area: 3/2; justify-self: center; align-self: end;    text-align: center;}
+    .pos-9 { grid-area: 3/3; justify-self: end;    align-self: end;    text-align: right; }
 
     /* ===== 타이머 (Time Timer 스타일) ===== */
     #timer { pointer-events: auto; text-align: center; }
@@ -140,7 +140,7 @@
       <div class="swatches" id="swatches"></div>
     </div>
     <div class="row">
-      <label>위치 <small>(숫자키 1-9, 넘버패드 배열)</small></label>
+      <label>위치 <small>(숫자키 1-9, 좌상단부터)</small></label>
       <div class="posgrid" id="posgrid"></div>
     </div>
     <div class="row">
@@ -201,7 +201,7 @@
       ['#b35050', '딤 레드'],
     ];
     const SIZES = [['0.7', '작게'], ['1', '보통'], ['1.4', '크게']];
-    const POS_ORDER = [7, 8, 9, 4, 5, 6, 1, 2, 3];
+    const POS_ORDER = [1, 2, 3, 4, 5, 6, 7, 8, 9];
     const DURS = [5, 10, 15, 25, 30, 45, 50, 60];
     const SOUNDS = [['bowl', '싱잉볼'], ['chime', '차임'], ['wood', '우드블록'], ['none', '없음']];
     const FLASHES = [['0', '끔'], ['0.25', '약'], ['0.5', '중'], ['0.85', '강']];
