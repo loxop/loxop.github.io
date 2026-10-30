@@ -177,6 +177,10 @@
       <label>밝아짐 지속 <small>(초)</small></label>
       <div class="seg" id="flashdurseg"></div>
     </div>
+    <div class="row">
+      <label>종료 알림 반복 <small>(소리 + 밝아짐)</small></label>
+      <div class="seg" id="repeatseg"></div>
+    </div>
 
     <div class="keys">
       <kbd>C</kbd> 시계 &nbsp; <kbd>T</kbd> 타이머 &nbsp; <kbd>S</kbd> 설정 &nbsp; <kbd>F</kbd> 전체화면<br/>
@@ -203,14 +207,17 @@
     const SIZES = [['0.7', '작게'], ['1', '보통'], ['1.4', '크게']];
     const POS_ORDER = [1, 2, 3, 4, 5, 6, 7, 8, 9];
     const DURS = [5, 10, 15, 25, 30, 45, 50, 60];
-    const SOUNDS = [['bowl', '싱잉볼'], ['chime', '차임'], ['wood', '우드블록'], ['none', '없음']];
+    const SOUNDS = [['bowl', '싱잉볼'], ['wind', '윈드차임'], ['marimba', '마림바'], ['kalimba', '칼림바'], ['bell', '튜블러벨'], ['epiano', '일렉피아노'], ['none', '없음']];
     const FLASHES = [['0', '끔'], ['0.25', '약'], ['0.5', '중'], ['0.85', '강']];
     const FLASH_DURS = [['3', '3'], ['6', '6'], ['10', '10'], ['20', '20']];
+    const REPEATS = [['once', '1회'], ['loop', '재설정까지 반복']];
 
     const DEFAULTS = { color: '#d9d9d9', pos: 5, scale: '1', date: true,
-                       dur: 30, sound: 'bowl', vol: 60, flash: '0.5', flashDur: '6' };
+                       dur: 30, sound: 'bowl', vol: 60, flash: '0.5', flashDur: '6', repeat: 'once' };
     let state = Object.assign({}, DEFAULTS);
     try { Object.assign(state, JSON.parse(localStorage.getItem('bs.settings') || '{}')); } catch (_) {}
+    if (state.sound === 'chime') state.sound = 'wind';
+    if (state.sound === 'wood') state.sound = 'marimba';
     function save() { try { localStorage.setItem('bs.settings', JSON.stringify(state)); } catch (_) {} }
 
     // ===== DOM =====
@@ -239,6 +246,7 @@
       selIn('#soundseg button', v => v === state.sound);
       selIn('#flashseg button', v => v === state.flash);
       selIn('#flashdurseg button', v => v === state.flashDur);
+      selIn('#repeatseg button', v => v === state.repeat);
       if (document.activeElement !== $('durinput')) $('durinput').value = state.dur;
       $('vol').value = state.vol;
       save();
@@ -262,6 +270,7 @@
     buildSeg('soundseg', SOUNDS, v => state.sound = v);
     buildSeg('flashseg', FLASHES, v => state.flash = v);
     buildSeg('flashdurseg', FLASH_DURS, v => state.flashDur = v);
+    buildSeg('repeatseg', REPEATS, v => state.repeat = v);
     $('durinput').addEventListener('change', (e) => {
       const n = Math.max(1, Math.min(180, Math.round(+e.target.value || state.dur)));
       setDefaultDur(n); applyState();
@@ -328,6 +337,7 @@
       T.raf = requestAnimationFrame(timerLoop);
     }
     function startTimer() {
+      stopAlarm();
       if (T.done || T.remainMs <= 0) { T.done = false; T.remainMs = state.dur * 60000; }
       ensureAudio();
       T.endAt = Date.now() + T.remainMs; T.running = true;
@@ -342,11 +352,13 @@
       applyState(); renderTimer();
     }
     function resetTimer() {
+      stopAlarm();
       T.running = false; T.done = false; T.remainMs = state.dur * 60000;
       cancelAnimationFrame(T.raf); clearInterval(T.tick);
       applyState(); renderTimer();
     }
     function adjustTimer(deltaMin) {
+      stopAlarm();
       if (T.done) { T.done = false; T.remainMs = 0; }
       const cur = T.running ? T.endAt - Date.now() : T.remainMs;
       let next = Math.max(60000, Math.min(180 * 60000, cur + deltaMin * 60000));
@@ -359,6 +371,7 @@
     // 남은 시간을 직접 지정 (실행 중이면 종료 시각도 같이 이동)
     function setRemain(ms) {
       ms = Math.max(1000, Math.min(180 * 60000, ms));
+      stopAlarm();
       if (T.done) T.done = false;
       T.remainMs = ms;
       if (T.running) T.endAt = Date.now() + ms;
@@ -431,9 +444,23 @@
     });
     editRemain.addEventListener('blur', () => closeEdit(true));
 
-    function onTimerEnd() {
+    let alarmTimer = null;
+    function stopAlarm() {
+      clearTimeout(alarmTimer); alarmTimer = null;
+      if (flashAnim) { flashAnim.cancel(); flashAnim = null; }
+    }
+    function fireAlarm() {
       playSound(state.sound);
       runFlash();
+      if (state.repeat === 'loop') {
+        // 밝아짐이 끝난 뒤 잠깐 쉬고 다시 (최소 8초 주기)
+        const period = Math.max(8, +state.flashDur + 3) * 1000;
+        alarmTimer = setTimeout(() => { if (T.done) fireAlarm(); }, period);
+      }
+    }
+    function onTimerEnd() {
+      stopAlarm();
+      fireAlarm();
       if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
         try { new Notification('타이머 종료', { body: state.dur + '분이 지났습니다.', silent: true }); } catch (_) {}
       }
@@ -457,36 +484,94 @@
       if (actx && actx.state === 'suspended') actx.resume();
       return actx;
     }
-    // 감쇠하는 배음 묶음 하나 = 종/보울 소리 하나
-    function tone(ctx, dest, t0, freq, partials, dur, gain) {
+    // 배음 묶음 하나 = 음 하나. partials: [주파수비, 상대음량, 감쇠비(1=전체 길이)]
+    // attack: 어택 시간(초). 타악기는 짧게, 보울은 조금 길게
+    function tone(ctx, dest, t0, freq, partials, dur, gain, attack = 0.008) {
       partials.forEach(([ratio, amp, decay]) => {
         const o = ctx.createOscillator(), g = ctx.createGain();
         o.type = 'sine'; o.frequency.value = freq * ratio;
         g.gain.setValueAtTime(0, t0);
-        g.gain.linearRampToValueAtTime(amp * gain, t0 + 0.012);
+        g.gain.linearRampToValueAtTime(amp * gain, t0 + attack);
         g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur * decay);
         o.connect(g).connect(dest); o.start(t0); o.stop(t0 + dur * decay + 0.05);
       });
     }
+    // 짧은 노이즈 버스트 = 타격감 (마림바/칼림바의 "톡")
+    function click(ctx, dest, t0, dur, gain, cutoff) {
+      const n = Math.floor(ctx.sampleRate * dur), buf = ctx.createBuffer(1, n, ctx.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+      const src = ctx.createBufferSource(); src.buffer = buf;
+      const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = cutoff;
+      const g = ctx.createGain(); g.gain.value = gain;
+      src.connect(f).connect(g).connect(dest); src.start(t0);
+    }
+    // 간단한 잔향: 짧은 딜레이 피드백 두 개로 공간감
+    function reverb(ctx, dest, amount) {
+      const inp = ctx.createGain(), wet = ctx.createGain(); wet.gain.value = amount;
+      inp.connect(dest);
+      [[0.031, 0.42], [0.047, 0.36]].forEach(([dt, fb]) => {
+        const dl = ctx.createDelay(1); dl.delayTime.value = dt;
+        const g = ctx.createGain(); g.gain.value = fb;
+        const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 3500;
+        inp.connect(dl); dl.connect(f).connect(g).connect(dl); dl.connect(wet);
+      });
+      wet.connect(dest);
+      return inp;
+    }
+    const N = (name) => ({ C4: 261.63, D4: 293.66, E4: 329.63, G4: 392.0, A4: 440.0, C5: 523.25, D5: 587.33, E5: 659.25, G5: 783.99, A5: 880.0, C6: 1046.5, D6: 1174.7, E6: 1318.5, G6: 1568.0 })[name];
+
     function playSound(kind) {
       if (kind === 'none') return;
       const ctx = ensureAudio(); if (!ctx) return;
       const master = ctx.createGain();
       master.gain.value = Math.pow(state.vol / 100, 1.6) * 0.5; // 음량 커브 (낮은 값에서 더 조용하게)
-      master.connect(ctx.destination);
+      const soft = ctx.createBiquadFilter(); soft.type = 'lowpass'; soft.frequency.value = 7000; // 귀 아픈 고역 정리
+      master.connect(soft).connect(ctx.destination);
       const t = ctx.currentTime + 0.03;
+
       if (kind === 'bowl') {
-        // 싱잉볼: 낮은 기음 + 비조화 배음, 긴 여운, 미세한 비트 울림
-        const p = [[1, 1, 1], [1.003, 0.6, 1], [2.71, 0.35, 0.55], [2.74, 0.2, 0.5], [4.95, 0.12, 0.3], [7.1, 0.05, 0.2]];
-        tone(ctx, master, t, 220, p, 7, 0.9);
-      } else if (kind === 'chime') {
-        // 차임: 부드러운 3음 상행 (펜타토닉 E5-G#5-B5), 종소리 배음
-        const p = [[1, 1, 1], [2.0, 0.3, 0.5], [3.01, 0.15, 0.35], [4.2, 0.07, 0.25]];
-        [659.25, 830.61, 987.77].forEach((f, i) => tone(ctx, master, t + i * 0.42, f, p, 3.2, 0.55 - i * 0.06));
-      } else if (kind === 'wood') {
-        // 우드블록: 짧은 타격음 2회 (쉼표 후 한 번 더)
-        const p = [[1, 1, 1], [1.62, 0.45, 0.8], [2.9, 0.2, 0.6]];
-        [0, 0.28, 0.9].forEach((d, i) => tone(ctx, master, t + d, i === 2 ? 760 : 620, p, 0.22, 0.9));
+        // 싱잉볼: 낮은 기음 + 비조화 배음, 긴 여운, 살짝 어긋난 두 기음이 만드는 느린 울렁임
+        const out = reverb(ctx, master, 0.25);
+        const p = [[1, 1, 1], [1.004, 0.6, 1], [2.71, 0.35, 0.55], [2.74, 0.2, 0.5], [4.95, 0.12, 0.3], [7.1, 0.05, 0.2]];
+        tone(ctx, out, t, 220, p, 8, 0.9, 0.02);
+      } else if (kind === 'wind') {
+        // 윈드차임: 펜타토닉 높은 음들이 바람에 흩날리듯 불규칙하게, 뒤로 갈수록 드물고 작게
+        const out = reverb(ctx, master, 0.4);
+        const scale = ['C6', 'D6', 'E6', 'G6', 'A5', 'G5', 'E5'];
+        const p = [[1, 1, 1], [2.76, 0.25, 0.5], [5.4, 0.08, 0.3]];
+        let tt = 0;
+        for (let i = 0; i < 9; i++) {
+          const f = N(scale[Math.floor(Math.random() * scale.length)]);
+          tone(ctx, out, t + tt, f, p, 2.6, 0.55 * (1 - i / 14), 0.004);
+          tt += 0.12 + Math.random() * 0.16 + i * 0.045;
+        }
+      } else if (kind === 'marimba') {
+        // 마림바: 나무의 따뜻한 기음 + 4배 배음(마림바 특유), 짧은 타격 노이즈. 3음 모티프 G4-C5-E5, 마지막은 길게
+        const out = reverb(ctx, master, 0.3);
+        const p = [[1, 1, 1], [4, 0.28, 0.35], [9.2, 0.06, 0.15]];
+        [['G4', 0, 0.9], ['C5', 0.26, 0.9], ['E5', 0.52, 1.6]].forEach(([n, d, len]) => {
+          tone(ctx, out, t + d, N(n), p, len, 0.8, 0.004);
+          click(ctx, out, t + d, 0.012, 0.25, 2500);
+        });
+      } else if (kind === 'kalimba') {
+        // 칼림바: 금속 혀의 맑은 기음과 높은 비조화 배음, 손톱 튕김. 하행 C6-G5-E5-C5
+        const out = reverb(ctx, master, 0.35);
+        const p = [[1, 1, 1], [5.4, 0.12, 0.25], [8.9, 0.05, 0.15]];
+        [['C6', 0], ['G5', 0.22], ['E5', 0.44], ['C5', 0.66]].forEach(([n, d], i) => {
+          tone(ctx, out, t + d, N(n), p, 1.8 + i * 0.3, 0.65, 0.003);
+          click(ctx, out, t + d, 0.008, 0.18, 5000);
+        });
+      } else if (kind === 'bell') {
+        // 튜블러벨: 교회 종 느낌의 비조화 배음(짝수배 위에 허밍), 두 번 울림
+        const out = reverb(ctx, master, 0.4);
+        const p = [[0.5, 0.5, 1], [1, 1, 0.85], [1.183, 0.5, 0.7], [1.506, 0.45, 0.6], [2.0, 0.35, 0.45], [2.514, 0.25, 0.35], [2.662, 0.15, 0.3], [3.011, 0.1, 0.25]];
+        tone(ctx, out, t, 440, p, 5, 0.55, 0.006);
+        tone(ctx, out, t + 1.4, 440, p, 5, 0.42, 0.006);
+      } else if (kind === 'epiano') {
+        // 일렉피아노: 부드러운 사인 기음에 약한 2·3배 배음, 낮은 음역 C-E-G 아르페지오 후 화음 지속
+        const out = reverb(ctx, master, 0.3);
+        const p = [[1, 1, 1], [2, 0.22, 0.5], [3, 0.07, 0.35], [1.002, 0.4, 1]];
+        [['C4', 0], ['E4', 0.18], ['G4', 0.36], ['C5', 0.54]].forEach(([n, d]) => tone(ctx, out, t + d, N(n), p, 3.2, 0.45, 0.012));
       }
     }
 
