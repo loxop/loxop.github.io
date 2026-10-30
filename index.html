@@ -49,7 +49,19 @@
     .pos-3 { grid-area: 3/3; justify-self: end;    align-self: end;    text-align: right; }
 
     /* ===== 타이머 (Time Timer 스타일) ===== */
-    #timer { pointer-events: auto; cursor: pointer; text-align: center; }
+    #timer { pointer-events: auto; text-align: center; }
+    #dial { cursor: grab; touch-action: none; }
+    #dial.dragging { cursor: grabbing; }
+    #remain { cursor: text; }
+    #remain:hover { text-decoration: underline dotted; text-underline-offset: 0.12em; text-decoration-color: color-mix(in srgb, var(--clock-color) 40%, transparent); }
+    #editremain {
+      display: none; margin-top: 0.3em; width: 4.2em; text-align: center;
+      background: transparent; border: 0; border-bottom: 2px solid var(--clock-color); color: var(--clock-color);
+      font: inherit; font-weight: 700; font-variant-numeric: tabular-nums; font-size: calc(clamp(32px, 6vmin, 120px) * var(--clock-scale));
+      line-height: 1; padding: 0; outline: none;
+    }
+    #timer.editing #remain { display: none; }
+    #timer.editing #editremain { display: inline-block; }
     #dial { width: calc(clamp(160px, 36vmin, 560px) * var(--clock-scale)); height: auto; display: block; margin: 0 auto; }
     #dial .ring { fill: none; stroke: var(--clock-color); stroke-opacity: 0.18; }
     #dial .tick { stroke: var(--clock-color); stroke-opacity: 0.45; stroke-linecap: round; }
@@ -59,7 +71,7 @@
     #remain { margin-top: 0.3em; font-weight: 700; font-variant-numeric: tabular-nums; font-size: calc(clamp(32px, 6vmin, 120px) * var(--clock-scale)); }
     #tstate { margin-top: 0.5em; opacity: 0.6; font-size: calc(clamp(12px, 1.8vmin, 32px) * var(--clock-scale)); letter-spacing: 0.08em; min-height: 1em; }
     #timer.running #tstate { opacity: 0.35; }
-    #timer.done #remain { animation: blink 1s steps(2, start) infinite; }
+    #timer.done:not(.editing) #remain { animation: blink 1s steps(2, start) infinite; }
     @keyframes blink { to { visibility: hidden; } }
 
     /* ===== 종료 시 화면 밝아짐 ===== */
@@ -107,14 +119,15 @@
       <div id="time">00:00:00</div>
       <div id="date">1970-01-01</div>
     </div>
-    <div id="timer" class="widget" aria-hidden="true" title="클릭: 시작/일시정지">
+    <div id="timer" class="widget" aria-hidden="true">
       <svg id="dial" viewBox="-110 -110 220 220" aria-hidden="true">
         <circle class="ring" r="100" stroke-width="2"/>
         <g id="ticks"></g>
         <path id="sector" class="sector" d=""/>
         <circle class="hub" r="5" stroke-width="2"/>
       </svg>
-      <div id="remain">30:00</div>
+      <div id="remain" title="클릭: 시간 입력">30:00</div>
+      <input id="editremain" type="text" inputmode="numeric" placeholder="25:00" aria-label="남은 시간 입력" />
       <div id="tstate">SPACE 로 시작</div>
     </div>
   </div>
@@ -168,6 +181,7 @@
     <div class="keys">
       <kbd>C</kbd> 시계 &nbsp; <kbd>T</kbd> 타이머 &nbsp; <kbd>S</kbd> 설정 &nbsp; <kbd>F</kbd> 전체화면<br/>
       <kbd>Space</kbd> 시작/정지 &nbsp; <kbd>R</kbd> 리셋 &nbsp; <kbd>↑</kbd><kbd>↓</kbd> ±1분 &nbsp; <kbd>←</kbd><kbd>→</kbd> ±5분<br/>
+      다이얼 드래그: 시간 조절 &nbsp;·&nbsp; 다이얼 클릭: 시작/정지 &nbsp;·&nbsp; 숫자 클릭: 직접 입력<br/>
       <kbd>1</kbd>-<kbd>9</kbd> 위치 &nbsp; <kbd>Esc</kbd> 설정 닫기
     </div>
   </div>
@@ -304,7 +318,7 @@
       const s = Math.ceil(ms / 1000);
       const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
       elRemain.textContent = (h ? h + ':' + pad(m) : String(m)) + ':' + pad(sec);
-      elTState.textContent = T.done ? '끝 · R 또는 SPACE 로 다시' : T.running ? '' : (ms < state.dur * 60000 ? '일시정지 · SPACE 로 계속' : 'SPACE 로 시작');
+      elTState.textContent = T.done ? '끝 · R 또는 SPACE 로 다시' : T.running ? '' : (ms < state.dur * 60000 ? '일시정지 · SPACE 로 계속' : 'SPACE 로 시작 · 다이얼 드래그로 조절');
     }
     function timerLoop() {
       if (!T.running) return;
@@ -342,7 +356,80 @@
       T.remainMs = next;
       applyState(); renderTimer();
     }
-    timer.addEventListener('click', () => T.running ? pauseTimer() : startTimer());
+    // 남은 시간을 직접 지정 (실행 중이면 종료 시각도 같이 이동)
+    function setRemain(ms) {
+      ms = Math.max(1000, Math.min(180 * 60000, ms));
+      if (T.done) T.done = false;
+      T.remainMs = ms;
+      if (T.running) T.endAt = Date.now() + ms;
+      applyState(); renderTimer();
+    }
+
+    // ===== 다이얼 드래그로 조절 (클릭만 하면 시작/정지) =====
+    const dial = $('dial');
+    let drag = null;
+    function dialMinutesAt(ev) {
+      const r = dial.getBoundingClientRect();
+      const dx = ev.clientX - (r.left + r.width / 2), dy = ev.clientY - (r.top + r.height / 2);
+      let a = Math.atan2(-dx, -dy); if (a < 0) a += Math.PI * 2; // 12시에서 반시계 방향 각도
+      const total = Math.max(60, state.dur);
+      let m = Math.round(a / (Math.PI * 2) * total);
+      if (m === 0 && a > Math.PI) m = total; // 12시 바로 왼쪽은 꽉 찬 상태
+      return Math.max(1, Math.min(total, m));
+    }
+    dial.addEventListener('pointerdown', (ev) => {
+      if (ev.button !== 0) return;
+      ev.preventDefault();
+      drag = { x: ev.clientX, y: ev.clientY, moved: false, wasRunning: T.running };
+      dial.setPointerCapture(ev.pointerId);
+    });
+    dial.addEventListener('pointermove', (ev) => {
+      if (!drag) return;
+      if (!drag.moved && Math.hypot(ev.clientX - drag.x, ev.clientY - drag.y) < 4) return;
+      drag.moved = true; dial.classList.add('dragging');
+      setRemain(dialMinutesAt(ev) * 60000);
+    });
+    function dragEnd(ev) {
+      if (!drag) return;
+      const wasClick = !drag.moved; drag = null; dial.classList.remove('dragging');
+      if (wasClick) { T.running ? pauseTimer() : startTimer(); }
+    }
+    dial.addEventListener('pointerup', dragEnd);
+    dial.addEventListener('pointercancel', dragEnd);
+
+    // ===== 남은 시간 클릭 → 직접 입력 =====
+    const editRemain = $('editremain');
+    function openEdit() {
+      editRemain.value = elRemain.textContent;
+      timer.classList.add('editing');
+      editRemain.focus(); editRemain.select();
+    }
+    function closeEdit(apply) {
+      if (!timer.classList.contains('editing')) return;
+      timer.classList.remove('editing');
+      if (!apply) return;
+      const ms = parseDuration(editRemain.value);
+      if (ms) setRemain(ms);
+    }
+    // "25" → 25분, "25:30" → 25분30초, "1:00:00" → 1시간
+    function parseDuration(str) {
+      const parts = str.trim().split(':').map(x => x.trim());
+      if (!parts.length || parts.some(x => x === '' || isNaN(+x))) return 0;
+      const n = parts.map(Number);
+      let sec = 0;
+      if (n.length === 1) sec = n[0] * 60;
+      else if (n.length === 2) sec = n[0] * 60 + n[1];
+      else if (n.length === 3) sec = n[0] * 3600 + n[1] * 60 + n[2];
+      else return 0;
+      return Math.round(sec) * 1000;
+    }
+    elRemain.addEventListener('click', openEdit);
+    editRemain.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') closeEdit(true);
+      else if (e.key === 'Escape') closeEdit(false);
+    });
+    editRemain.addEventListener('blur', () => closeEdit(true));
 
     function onTimerEnd() {
       playSound(state.sound);
@@ -444,7 +531,7 @@
     });
 
     // 타이머 시작 시 알림 권한을 조용히 요청해 두면 다른 탭에 있을 때도 알림 가능
-    timer.addEventListener('click', () => { if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission(); }, { once: true });
+    dial.addEventListener('pointerdown', () => { if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission(); }, { once: true });
 
     applyState(); renderTimer();
   </script>
