@@ -288,7 +288,8 @@
 
     function setDefaultDur(n) {
       state.dur = n;
-      if (!T.running && !T.done) { T.remainMs = n * 60000; renderTimer(); }
+      T.setMs = n * 60000;
+      if (!T.running && !T.done) { T.remainMs = T.setMs; renderTimer(); }
     }
 
     // ===== 시계 =====
@@ -306,7 +307,7 @@
     function stopClock() { clearInterval(clockTimer); clearTimeout(clockTimeout); }
 
     // ===== 타이머 =====
-    const T = { remainMs: state.dur * 60000, endAt: 0, running: false, done: false, raf: 0, tick: null };
+    const T = { remainMs: state.dur * 60000, setMs: state.dur * 60000, endAt: 0, running: false, done: false, raf: 0, tick: null };
 
     // 눈금: 60분 다이얼, 5분마다 큰 눈금
     (function buildTicks() {
@@ -334,7 +335,7 @@
       const s = Math.ceil(ms / 1000);
       const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
       elRemain.textContent = (h ? h + ':' + pad(m) : String(m)) + ':' + pad(sec);
-      elTState.textContent = T.done ? '끝 · R 또는 SPACE 로 다시' : T.running ? '' : (ms < state.dur * 60000 ? '일시정지 · SPACE 로 계속' : 'SPACE 로 시작 · 다이얼 드래그로 조절');
+      elTState.textContent = T.done ? '끝 · R 또는 SPACE 로 다시' : T.running ? '' : (ms < T.setMs ? '일시정지 · SPACE 로 계속' : 'SPACE 로 시작 · 다이얼 드래그로 조절');
     }
     function timerLoop() {
       if (!T.running) return;
@@ -345,7 +346,7 @@
     }
     function startTimer() {
       stopAlarm();
-      if (T.done || T.remainMs <= 0) { T.done = false; T.remainMs = state.dur * 60000; }
+      if (T.done || T.remainMs <= 0) { T.done = false; T.remainMs = T.setMs; }
       ensureAudio();
       T.endAt = Date.now() + T.remainMs; T.running = true;
       cancelAnimationFrame(T.raf); clearInterval(T.tick);
@@ -360,7 +361,7 @@
     }
     function resetTimer() {
       stopAlarm();
-      T.running = false; T.done = false; T.remainMs = state.dur * 60000;
+      T.running = false; T.done = false; T.remainMs = T.setMs;
       cancelAnimationFrame(T.raf); clearInterval(T.tick);
       applyState(); renderTimer();
     }
@@ -368,10 +369,9 @@
       stopAlarm();
       if (T.done) { T.done = false; T.remainMs = 0; }
       const cur = T.running ? T.endAt - Date.now() : T.remainMs;
-      let next = Math.max(60000, Math.min(180 * 60000, cur + deltaMin * 60000));
-      // 분 단위로 정렬 (초 잔여분은 버림)
-      next = Math.ceil(next / 60000) * 60000;
-      if (T.running) T.endAt = Date.now() + next;
+      // 현재 값을 분 단위로 맞춘 뒤 더하기 (0:02 에서 ↑ → 1:00)
+      const next = Math.max(1, Math.min(180, Math.round(cur / 60000) + deltaMin)) * 60000;
+      if (T.running) T.endAt = Date.now() + next; else T.setMs = next;
       T.remainMs = next;
       applyState(); renderTimer();
     }
@@ -381,7 +381,7 @@
       stopAlarm();
       if (T.done) T.done = false;
       T.remainMs = ms;
-      if (T.running) T.endAt = Date.now() + ms;
+      if (T.running) T.endAt = Date.now() + ms; else T.setMs = ms;
       applyState(); renderTimer();
     }
 
@@ -427,6 +427,7 @@
     function closeEdit(apply) {
       if (!timer.classList.contains('editing')) return;
       timer.classList.remove('editing');
+      editRemain.blur(); // 숨긴 뒤에도 포커스가 남아 다음 키를 삼키지 않도록
       if (!apply) return;
       const ms = parseDuration(editRemain.value);
       if (ms) setRemain(ms);
