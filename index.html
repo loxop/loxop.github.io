@@ -25,14 +25,14 @@
       box-sizing: border-box;
       pointer-events: none;
     }
-    #clock {
+    .widget {
       display: none;
       user-select: none;
       color: var(--clock-color);
       line-height: 1;
       white-space: nowrap;
     }
-    #clock.on { display: block; }
+    .widget.on { display: block; }
     #time { font-weight: 700; font-variant-numeric: tabular-nums; font-size: calc(clamp(48px, 9vmin, 180px) * var(--clock-scale)); }
     #date { margin-top: 0.35em; opacity: 0.85; font-size: calc(clamp(14px, 2.2vmin, 40px) * var(--clock-scale)); }
     #date.hidden { display: none; }
@@ -48,52 +48,77 @@
     .pos-2 { grid-area: 3/2; justify-self: center; align-self: end;    text-align: center;}
     .pos-3 { grid-area: 3/3; justify-self: end;    align-self: end;    text-align: right; }
 
+    /* ===== 타이머 (Time Timer 스타일) ===== */
+    #timer { pointer-events: auto; cursor: pointer; text-align: center; }
+    #dial { width: calc(clamp(160px, 36vmin, 560px) * var(--clock-scale)); height: auto; display: block; margin: 0 auto; }
+    #dial .ring { fill: none; stroke: var(--clock-color); stroke-opacity: 0.18; }
+    #dial .tick { stroke: var(--clock-color); stroke-opacity: 0.45; stroke-linecap: round; }
+    #dial .tick.major { stroke-opacity: 0.8; }
+    #dial .sector { fill: var(--clock-color); fill-opacity: 0.85; }
+    #dial .hub { fill: #000; stroke: var(--clock-color); stroke-opacity: 0.5; }
+    #remain { margin-top: 0.3em; font-weight: 700; font-variant-numeric: tabular-nums; font-size: calc(clamp(32px, 6vmin, 120px) * var(--clock-scale)); }
+    #tstate { margin-top: 0.5em; opacity: 0.6; font-size: calc(clamp(12px, 1.8vmin, 32px) * var(--clock-scale)); letter-spacing: 0.08em; min-height: 1em; }
+    #timer.running #tstate { opacity: 0.35; }
+    #timer.done #remain { animation: blink 1s steps(2, start) infinite; }
+    @keyframes blink { to { visibility: hidden; } }
+
+    /* ===== 종료 시 화면 밝아짐 ===== */
+    #flash { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+
     /* ===== 설정 패널 (S) ===== */
     #panel {
       position: fixed; right: 16px; bottom: 16px;
       width: 300px; max-width: calc(100vw - 32px);
+      max-height: calc(100vh - 32px); overflow-y: auto;
       background: rgba(18,18,18,0.96);
       border: 1px solid #333; border-radius: 10px;
       color: #cfcfcf; font-size: 13px;
-      padding: 14px 16px;
+      padding: 14px 16px; box-sizing: border-box;
       display: none;
       box-shadow: 0 8px 30px rgba(0,0,0,0.6);
     }
     #panel.on { display: block; }
     #panel h2 { margin: 0 0 10px; font-size: 14px; font-weight: 600; color: #eee; display: flex; justify-content: space-between; }
     #panel h2 span { color: #777; font-weight: 400; font-size: 12px; }
+    #panel h3 { margin: 16px 0 4px; padding-top: 12px; border-top: 1px solid #2a2a2a; font-size: 12px; font-weight: 600; color: #aaa; letter-spacing: 0.04em; }
     .row { margin: 12px 0; }
     .row label { display: block; color: #999; margin-bottom: 6px; font-size: 12px; }
+    .row label small { color: #666; }
     .swatches { display: flex; flex-wrap: wrap; gap: 8px; }
-    .swatch {
-      width: 26px; height: 26px; border-radius: 50%;
-      border: 2px solid transparent; cursor: pointer;
-      box-sizing: border-box;
-    }
+    .swatch { width: 26px; height: 26px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; box-sizing: border-box; }
     .swatch.sel { border-color: #fff; }
     .posgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; width: 120px; }
-    .posgrid button {
-      height: 30px; background: #222; border: 1px solid #333; color: #888;
-      border-radius: 4px; cursor: pointer; font-size: 12px;
-    }
-    .posgrid button.sel { background: #444; color: #fff; border-color: #666; }
-    .seg { display: flex; gap: 4px; }
-    .seg button {
-      flex: 1; height: 28px; background: #222; border: 1px solid #333; color: #888;
-      border-radius: 4px; cursor: pointer; font-size: 12px;
-    }
-    .seg button.sel { background: #444; color: #fff; border-color: #666; }
-    .keys { margin-top: 12px; padding-top: 10px; border-top: 1px solid #2a2a2a; color: #777; font-size: 11px; line-height: 1.7; }
+    .posgrid button { height: 30px; }
+    .seg { display: flex; gap: 4px; flex-wrap: wrap; }
+    .seg button { flex: 1; height: 28px; min-width: 44px; }
+    #panel button { background: #222; border: 1px solid #333; color: #888; border-radius: 4px; cursor: pointer; font-size: 12px; font-family: inherit; }
+    #panel button.sel { background: #444; color: #fff; border-color: #666; }
+    #panel button:hover { border-color: #555; }
+    .inline { display: flex; gap: 6px; align-items: center; }
+    .inline input { width: 64px; height: 26px; background: #111; border: 1px solid #333; color: #eee; border-radius: 4px; padding: 0 8px; font-size: 13px; font-family: inherit; }
+    .inline input:focus { outline: none; border-color: #666; }
+    .keys { margin-top: 12px; padding-top: 10px; border-top: 1px solid #2a2a2a; color: #777; font-size: 11px; line-height: 1.9; }
     kbd { background: #2a2a2a; border: 1px solid #444; border-radius: 3px; padding: 0 5px; color: #ddd; font-family: inherit; }
   </style>
 </head>
 <body>
   <div id="grid">
-    <div id="clock" class="pos-5" aria-hidden="true">
+    <div id="clock" class="widget" aria-hidden="true">
       <div id="time">00:00:00</div>
       <div id="date">1970-01-01</div>
     </div>
+    <div id="timer" class="widget" aria-hidden="true" title="클릭: 시작/일시정지">
+      <svg id="dial" viewBox="-110 -110 220 220" aria-hidden="true">
+        <circle class="ring" r="100" stroke-width="2"/>
+        <g id="ticks"></g>
+        <path id="sector" class="sector" d=""/>
+        <circle class="hub" r="5" stroke-width="2"/>
+      </svg>
+      <div id="remain">30:00</div>
+      <div id="tstate">SPACE 로 시작</div>
+    </div>
   </div>
+  <div id="flash"></div>
 
   <div id="panel" role="dialog" aria-label="설정">
     <h2>설정 <span>S 로 닫기</span></h2>
@@ -102,7 +127,7 @@
       <div class="swatches" id="swatches"></div>
     </div>
     <div class="row">
-      <label>위치 <span style="color:#666">(숫자키 1-9, 넘버패드 배열)</span></label>
+      <label>위치 <small>(숫자키 1-9, 넘버패드 배열)</small></label>
       <div class="posgrid" id="posgrid"></div>
     </div>
     <div class="row">
@@ -110,11 +135,40 @@
       <div class="seg" id="sizes"></div>
     </div>
     <div class="row">
-      <label>날짜</label>
+      <label>시계 날짜</label>
       <div class="seg" id="dateseg"></div>
     </div>
+
+    <h3>타이머</h3>
+    <div class="row">
+      <label>기본 시간 <small>(분)</small></label>
+      <div class="seg" id="durseg"></div>
+      <div class="inline" style="margin-top:6px">
+        <input id="durinput" type="number" min="1" max="180" step="1" /> <span style="color:#777">분 직접 입력</span>
+      </div>
+    </div>
+    <div class="row">
+      <label>종료 알림음</label>
+      <div class="seg" id="soundseg"></div>
+      <div class="inline" style="margin-top:6px">
+        <button id="preview" style="height:26px;padding:0 10px">▶ 미리듣기</button>
+        <span style="color:#777">음량</span>
+        <input id="vol" type="range" min="0" max="100" step="5" style="width:90px" />
+      </div>
+    </div>
+    <div class="row">
+      <label>종료 시 화면 밝아짐 <small>(강도)</small></label>
+      <div class="seg" id="flashseg"></div>
+    </div>
+    <div class="row">
+      <label>밝아짐 지속 <small>(초)</small></label>
+      <div class="seg" id="flashdurseg"></div>
+    </div>
+
     <div class="keys">
-      <kbd>C</kbd> 시계 &nbsp; <kbd>S</kbd> 설정 &nbsp; <kbd>F</kbd> 전체화면 &nbsp; <kbd>1</kbd>-<kbd>9</kbd> 위치 &nbsp; <kbd>Esc</kbd> 닫기
+      <kbd>C</kbd> 시계 &nbsp; <kbd>T</kbd> 타이머 &nbsp; <kbd>S</kbd> 설정 &nbsp; <kbd>F</kbd> 전체화면<br/>
+      <kbd>Space</kbd> 시작/정지 &nbsp; <kbd>R</kbd> 리셋 &nbsp; <kbd>↑</kbd><kbd>↓</kbd> ±1분 &nbsp; <kbd>←</kbd><kbd>→</kbd> ±5분<br/>
+      <kbd>1</kbd>-<kbd>9</kbd> 위치 &nbsp; <kbd>Esc</kbd> 설정 닫기
     </div>
   </div>
 
@@ -134,59 +188,78 @@
     ];
     const SIZES = [['0.7', '작게'], ['1', '보통'], ['1.4', '크게']];
     const POS_ORDER = [7, 8, 9, 4, 5, 6, 1, 2, 3];
+    const DURS = [5, 10, 15, 25, 30, 45, 50, 60];
+    const SOUNDS = [['bowl', '싱잉볼'], ['chime', '차임'], ['wood', '우드블록'], ['none', '없음']];
+    const FLASHES = [['0', '끔'], ['0.25', '약'], ['0.5', '중'], ['0.85', '강']];
+    const FLASH_DURS = [['3', '3'], ['6', '6'], ['10', '10'], ['20', '20']];
 
-    const DEFAULTS = { color: '#d9d9d9', pos: 5, scale: '1', date: true };
+    const DEFAULTS = { color: '#d9d9d9', pos: 5, scale: '1', date: true,
+                       dur: 30, sound: 'bowl', vol: 60, flash: '0.5', flashDur: '6' };
     let state = Object.assign({}, DEFAULTS);
     try { Object.assign(state, JSON.parse(localStorage.getItem('bs.settings') || '{}')); } catch (_) {}
     function save() { try { localStorage.setItem('bs.settings', JSON.stringify(state)); } catch (_) {} }
 
     // ===== DOM =====
-    const clock = document.getElementById('clock');
-    const elTime = document.getElementById('time');
-    const elDate = document.getElementById('date');
-    const panel = document.getElementById('panel');
+    const $ = (id) => document.getElementById(id);
+    const clock = $('clock'), elTime = $('time'), elDate = $('date');
+    const timer = $('timer'), elRemain = $('remain'), elTState = $('tstate'), elSector = $('sector');
+    const panel = $('panel'), flash = $('flash');
 
+    let mode = null; // null | 'clock' | 'timer'
+
+    function selIn(sel, pred) { document.querySelectorAll(sel).forEach(b => b.classList.toggle('sel', pred(b.dataset.v))); }
     function applyState() {
       document.documentElement.style.setProperty('--clock-color', state.color);
       document.documentElement.style.setProperty('--clock-scale', state.scale);
-      clock.className = 'pos-' + state.pos + (clockVisible ? ' on' : '');
+      clock.className = 'widget pos-' + state.pos + (mode === 'clock' ? ' on' : '');
+      timer.className = 'widget pos-' + state.pos + (mode === 'timer' ? ' on' : '')
+                      + (T.running ? ' running' : '') + (T.done ? ' done' : '');
+      clock.setAttribute('aria-hidden', mode !== 'clock');
+      timer.setAttribute('aria-hidden', mode !== 'timer');
       elDate.classList.toggle('hidden', !state.date);
-      document.querySelectorAll('#swatches .swatch').forEach(b => b.classList.toggle('sel', b.dataset.v === state.color));
-      document.querySelectorAll('#posgrid button').forEach(b => b.classList.toggle('sel', +b.dataset.v === state.pos));
-      document.querySelectorAll('#sizes button').forEach(b => b.classList.toggle('sel', b.dataset.v === state.scale));
-      document.querySelectorAll('#dateseg button').forEach(b => b.classList.toggle('sel', (b.dataset.v === '1') === state.date));
+      selIn('#swatches .swatch', v => v === state.color);
+      selIn('#posgrid button', v => +v === state.pos);
+      selIn('#sizes button', v => v === state.scale);
+      selIn('#dateseg button', v => (v === '1') === state.date);
+      selIn('#durseg button', v => +v === state.dur);
+      selIn('#soundseg button', v => v === state.sound);
+      selIn('#flashseg button', v => v === state.flash);
+      selIn('#flashdurseg button', v => v === state.flashDur);
+      if (document.activeElement !== $('durinput')) $('durinput').value = state.dur;
+      $('vol').value = state.vol;
       save();
     }
 
-    // 패널 UI 구성
-    const swatches = document.getElementById('swatches');
-    COLORS.forEach(([hex, name]) => {
-      const b = document.createElement('button');
-      b.className = 'swatch'; b.style.background = hex; b.title = name; b.dataset.v = hex;
-      b.onclick = () => { state.color = hex; applyState(); };
-      swatches.appendChild(b);
+    // ===== 패널 UI 구성 =====
+    function buildSeg(id, items, onpick, render) {
+      const box = $(id);
+      items.forEach(([v, name]) => {
+        const b = document.createElement('button');
+        b.dataset.v = v; if (render) render(b, v, name); else b.textContent = name;
+        b.onclick = () => { onpick(v); applyState(); };
+        box.appendChild(b);
+      });
+    }
+    buildSeg('swatches', COLORS, v => state.color = v, (b, v, name) => { b.className = 'swatch'; b.style.background = v; b.title = name; });
+    buildSeg('posgrid', POS_ORDER.map(n => [n, String(n)]), v => state.pos = +v);
+    buildSeg('sizes', SIZES, v => state.scale = v);
+    buildSeg('dateseg', [['1', '표시'], ['0', '숨김']], v => state.date = v === '1');
+    buildSeg('durseg', DURS.map(n => [n, String(n)]), v => setDefaultDur(+v));
+    buildSeg('soundseg', SOUNDS, v => state.sound = v);
+    buildSeg('flashseg', FLASHES, v => state.flash = v);
+    buildSeg('flashdurseg', FLASH_DURS, v => state.flashDur = v);
+    $('durinput').addEventListener('change', (e) => {
+      const n = Math.max(1, Math.min(180, Math.round(+e.target.value || state.dur)));
+      setDefaultDur(n); applyState();
     });
-    const posgrid = document.getElementById('posgrid');
-    POS_ORDER.forEach(n => {
-      const b = document.createElement('button');
-      b.textContent = n; b.dataset.v = n;
-      b.onclick = () => { state.pos = n; applyState(); };
-      posgrid.appendChild(b);
-    });
-    const sizes = document.getElementById('sizes');
-    SIZES.forEach(([v, name]) => {
-      const b = document.createElement('button');
-      b.textContent = name; b.dataset.v = v;
-      b.onclick = () => { state.scale = v; applyState(); };
-      sizes.appendChild(b);
-    });
-    const dateseg = document.getElementById('dateseg');
-    [['1', '표시'], ['0', '숨김']].forEach(([v, name]) => {
-      const b = document.createElement('button');
-      b.textContent = name; b.dataset.v = v;
-      b.onclick = () => { state.date = v === '1'; applyState(); };
-      dateseg.appendChild(b);
-    });
+    $('vol').addEventListener('input', (e) => { state.vol = +e.target.value; save(); });
+    $('preview').addEventListener('click', () => playSound(state.sound));
+    panel.addEventListener('keydown', (e) => { if (e.key === 'Escape') { togglePanel(false); e.target.blur(); } e.stopPropagation(); });
+
+    function setDefaultDur(n) {
+      state.dur = n;
+      if (!T.running && !T.done) { T.remainMs = n * 60000; renderTimer(); }
+    }
 
     // ===== 시계 =====
     function pad(n) { return String(n).padStart(2, '0'); }
@@ -195,17 +268,145 @@
       elTime.textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
       elDate.textContent = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
     }
-    let clockVisible = false;
-    let timerId = null, timeoutId = null;
-    function toggleClock(force) {
-      clockVisible = force === undefined ? !clockVisible : !!force;
-      clock.setAttribute('aria-hidden', clockVisible ? 'false' : 'true');
-      clearInterval(timerId); clearTimeout(timeoutId);
-      if (clockVisible) {
-        updateClock();
-        // 다음 초 경계에 맞춰 1초 간격 갱신
-        timeoutId = setTimeout(() => { updateClock(); timerId = setInterval(updateClock, 1000); }, 1000 - (Date.now() % 1000));
+    let clockTimer = null, clockTimeout = null;
+    function startClock() {
+      stopClock(); updateClock();
+      clockTimeout = setTimeout(() => { updateClock(); clockTimer = setInterval(updateClock, 1000); }, 1000 - (Date.now() % 1000));
+    }
+    function stopClock() { clearInterval(clockTimer); clearTimeout(clockTimeout); }
+
+    // ===== 타이머 =====
+    const T = { remainMs: state.dur * 60000, endAt: 0, running: false, done: false, raf: 0, tick: null };
+
+    // 눈금: 60분 다이얼, 5분마다 큰 눈금
+    (function buildTicks() {
+      const g = $('ticks'); let html = '';
+      for (let i = 0; i < 60; i++) {
+        const a = (i / 60) * Math.PI * 2, major = i % 5 === 0;
+        const r1 = major ? 88 : 94, r2 = 100;
+        html += `<line class="tick${major ? ' major' : ''}" x1="${(Math.sin(a) * r1).toFixed(2)}" y1="${(-Math.cos(a) * r1).toFixed(2)}" x2="${(Math.sin(a) * r2).toFixed(2)}" y2="${(-Math.cos(a) * r2).toFixed(2)}" stroke-width="${major ? 2.5 : 1.2}"/>`;
       }
+      g.innerHTML = html;
+    })();
+
+    function sectorPath(frac) {
+      // 12시 방향에서 시계 반대방향으로 frac 만큼 채운 부채꼴 (Time Timer 방식)
+      if (frac <= 0) return '';
+      if (frac >= 0.9999) return 'M0,-86 A86,86 0 1,1 -0.01,-86 Z';
+      const a = frac * Math.PI * 2;
+      const x = -Math.sin(a) * 86, y = -Math.cos(a) * 86;
+      return `M0,0 L0,-86 A86,86 0 ${a > Math.PI ? 1 : 0},0 ${x.toFixed(2)},${y.toFixed(2)} Z`;
+    }
+    function renderTimer() {
+      const ms = Math.max(0, T.remainMs);
+      const total = Math.max(60, state.dur) * 60000; // 60분 다이얼, 그 이상은 전체 길이 기준
+      elSector.setAttribute('d', sectorPath(ms / total));
+      const s = Math.ceil(ms / 1000);
+      const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+      elRemain.textContent = (h ? h + ':' + pad(m) : String(m)) + ':' + pad(sec);
+      elTState.textContent = T.done ? '끝 · R 또는 SPACE 로 다시' : T.running ? '' : (ms < state.dur * 60000 ? '일시정지 · SPACE 로 계속' : 'SPACE 로 시작');
+    }
+    function timerLoop() {
+      if (!T.running) return;
+      T.remainMs = T.endAt - Date.now();
+      if (T.remainMs <= 0) { T.remainMs = 0; T.running = false; T.done = true; renderTimer(); applyState(); onTimerEnd(); return; }
+      renderTimer();
+      T.raf = requestAnimationFrame(timerLoop);
+    }
+    function startTimer() {
+      if (T.done || T.remainMs <= 0) { T.done = false; T.remainMs = state.dur * 60000; }
+      ensureAudio();
+      T.endAt = Date.now() + T.remainMs; T.running = true;
+      cancelAnimationFrame(T.raf); clearInterval(T.tick);
+      T.raf = requestAnimationFrame(timerLoop);
+      T.tick = setInterval(timerLoop, 500); // 백그라운드 탭에서도 종료 감지
+      applyState(); renderTimer();
+    }
+    function pauseTimer() {
+      T.running = false; T.remainMs = Math.max(0, T.endAt - Date.now());
+      cancelAnimationFrame(T.raf); clearInterval(T.tick);
+      applyState(); renderTimer();
+    }
+    function resetTimer() {
+      T.running = false; T.done = false; T.remainMs = state.dur * 60000;
+      cancelAnimationFrame(T.raf); clearInterval(T.tick);
+      applyState(); renderTimer();
+    }
+    function adjustTimer(deltaMin) {
+      if (T.done) { T.done = false; T.remainMs = 0; }
+      const cur = T.running ? T.endAt - Date.now() : T.remainMs;
+      let next = Math.max(60000, Math.min(180 * 60000, cur + deltaMin * 60000));
+      // 분 단위로 정렬 (초 잔여분은 버림)
+      next = Math.ceil(next / 60000) * 60000;
+      if (T.running) T.endAt = Date.now() + next;
+      T.remainMs = next;
+      applyState(); renderTimer();
+    }
+    timer.addEventListener('click', () => T.running ? pauseTimer() : startTimer());
+
+    function onTimerEnd() {
+      playSound(state.sound);
+      runFlash();
+      if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+        try { new Notification('타이머 종료', { body: state.dur + '분이 지났습니다.', silent: true }); } catch (_) {}
+      }
+    }
+
+    // ===== 종료 시 밝아짐: 천천히 올라갔다가 머문 뒤 천천히 돌아옴 =====
+    let flashAnim = null;
+    function runFlash() {
+      const peak = +state.flash; if (!peak) return;
+      const total = +state.flashDur * 1000;
+      if (flashAnim) flashAnim.cancel();
+      flashAnim = flash.animate(
+        [{ opacity: 0 }, { opacity: peak, offset: 0.4, easing: 'ease-in-out' }, { opacity: peak, offset: 0.6 }, { opacity: 0 }],
+        { duration: total, easing: 'ease-in-out', fill: 'forwards' });
+    }
+
+    // ===== 알림음 (WebAudio 합성, 외부 파일 없음) =====
+    let actx = null;
+    function ensureAudio() {
+      if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (_) {} }
+      if (actx && actx.state === 'suspended') actx.resume();
+      return actx;
+    }
+    // 감쇠하는 배음 묶음 하나 = 종/보울 소리 하나
+    function tone(ctx, dest, t0, freq, partials, dur, gain) {
+      partials.forEach(([ratio, amp, decay]) => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = 'sine'; o.frequency.value = freq * ratio;
+        g.gain.setValueAtTime(0, t0);
+        g.gain.linearRampToValueAtTime(amp * gain, t0 + 0.012);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur * decay);
+        o.connect(g).connect(dest); o.start(t0); o.stop(t0 + dur * decay + 0.05);
+      });
+    }
+    function playSound(kind) {
+      if (kind === 'none') return;
+      const ctx = ensureAudio(); if (!ctx) return;
+      const master = ctx.createGain();
+      master.gain.value = Math.pow(state.vol / 100, 1.6) * 0.5; // 음량 커브 (낮은 값에서 더 조용하게)
+      master.connect(ctx.destination);
+      const t = ctx.currentTime + 0.03;
+      if (kind === 'bowl') {
+        // 싱잉볼: 낮은 기음 + 비조화 배음, 긴 여운, 미세한 비트 울림
+        const p = [[1, 1, 1], [1.003, 0.6, 1], [2.71, 0.35, 0.55], [2.74, 0.2, 0.5], [4.95, 0.12, 0.3], [7.1, 0.05, 0.2]];
+        tone(ctx, master, t, 220, p, 7, 0.9);
+      } else if (kind === 'chime') {
+        // 차임: 부드러운 3음 상행 (펜타토닉 E5-G#5-B5), 종소리 배음
+        const p = [[1, 1, 1], [2.0, 0.3, 0.5], [3.01, 0.15, 0.35], [4.2, 0.07, 0.25]];
+        [659.25, 830.61, 987.77].forEach((f, i) => tone(ctx, master, t + i * 0.42, f, p, 3.2, 0.55 - i * 0.06));
+      } else if (kind === 'wood') {
+        // 우드블록: 짧은 타격음 2회 (쉼표 후 한 번 더)
+        const p = [[1, 1, 1], [1.62, 0.45, 0.8], [2.9, 0.2, 0.6]];
+        [0, 0.28, 0.9].forEach((d, i) => tone(ctx, master, t + d, i === 2 ? 760 : 620, p, 0.22, 0.9));
+      }
+    }
+
+    // ===== 모드 전환 =====
+    function setMode(m) {
+      mode = (mode === m) ? null : m;
+      if (mode === 'clock') startClock(); else stopClock();
       applyState();
     }
 
@@ -213,7 +414,7 @@
     function togglePanel(force) {
       const on = force === undefined ? !panel.classList.contains('on') : !!force;
       panel.classList.toggle('on', on);
-      if (on && !clockVisible) toggleClock(true); // 설정 중엔 시계를 보여줘야 조정이 됨
+      if (on && !mode) setMode('clock'); // 설정 중엔 뭔가 보여야 조정이 됨
     }
 
     // ===== 전체화면 =====
@@ -228,14 +429,24 @@
     window.addEventListener('keydown', (e) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const k = e.key.toLowerCase();
-      if (k === 'c') { e.preventDefault(); toggleClock(); }
+      if (k === 'c') { e.preventDefault(); setMode('clock'); }
+      else if (k === 't') { e.preventDefault(); setMode('timer'); }
       else if (k === 's') { e.preventDefault(); togglePanel(); }
       else if (k === 'f') { e.preventDefault(); toggleFullscreen(); }
       else if (k === 'escape') { togglePanel(false); }
       else if (/^[1-9]$/.test(k)) { state.pos = +k; applyState(); }
+      else if (k === ' ') { e.preventDefault(); if (mode !== 'timer') setMode('timer'); T.running ? pauseTimer() : startTimer(); }
+      else if (k === 'r') { e.preventDefault(); resetTimer(); }
+      else if (k === 'arrowup') { e.preventDefault(); adjustTimer(1); }
+      else if (k === 'arrowdown') { e.preventDefault(); adjustTimer(-1); }
+      else if (k === 'arrowright') { e.preventDefault(); adjustTimer(5); }
+      else if (k === 'arrowleft') { e.preventDefault(); adjustTimer(-5); }
     });
 
-    applyState();
+    // 타이머 시작 시 알림 권한을 조용히 요청해 두면 다른 탭에 있을 때도 알림 가능
+    timer.addEventListener('click', () => { if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission(); }, { once: true });
+
+    applyState(); renderTimer();
   </script>
 </body>
 </html>
