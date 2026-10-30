@@ -2,88 +2,240 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Black Screen</title>
   <style>
-    html, body { height: 100%; margin: 0; background: #000; }
-    :root { --clock-color: #00ff7f; }
-    /* 중앙 상단 정렬 */
-    #clock {
-      position: absolute;
-      top: 6vh; /* 화면 상단에서 조금 내림 */
-      left: 50%; transform: translateX(-50%);
-      text-align: center;
-      display: none; /* 기본은 숨김 (완전 블랙) */
-      user-select: none;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Apple SD Gothic Neo, "맑은 고딕", sans-serif;
+    html, body { height: 100%; margin: 0; background: #000; overflow: hidden; }
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Apple SD Gothic Neo", "맑은 고딕", sans-serif; }
+    :root {
+      --clock-color: #d9d9d9;
+      --clock-scale: 1;
+      /* 가장자리 여백: 와이드/16:9 어디서든 비슷한 체감이 되도록 vmin 기준 */
+      --pad-y: clamp(20px, 5vmin, 90px);
+      --pad-x: clamp(24px, 6vmin, 110px);
     }
-    #time { color: var(--clock-color); line-height: 1; font-weight: 700; font-size: clamp(56px, 12vw, 160px); }
-    #date { color: var(--clock-color); opacity: 0.95; margin-top: 8px; font-size: clamp(14px, 2vw, 28px); }
+
+    /* ===== 3x3 배치 그리드 ===== */
+    #grid {
+      position: fixed; inset: 0;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      grid-template-rows: 1fr auto 1fr;
+      padding: var(--pad-y) var(--pad-x);
+      box-sizing: border-box;
+      pointer-events: none;
+    }
+    #clock {
+      display: none;
+      user-select: none;
+      color: var(--clock-color);
+      line-height: 1;
+      white-space: nowrap;
+    }
+    #clock.on { display: block; }
+    #time { font-weight: 700; font-variant-numeric: tabular-nums; font-size: calc(clamp(48px, 9vmin, 180px) * var(--clock-scale)); }
+    #date { margin-top: 0.35em; opacity: 0.85; font-size: calc(clamp(14px, 2.2vmin, 40px) * var(--clock-scale)); }
+    #date.hidden { display: none; }
+
+    /* 위치 (pos-1 ~ pos-9, 넘버패드 배열) */
+    .pos-7 { grid-area: 1/1; justify-self: start;  align-self: start;  text-align: left;  }
+    .pos-8 { grid-area: 1/2; justify-self: center; align-self: start;  text-align: center;}
+    .pos-9 { grid-area: 1/3; justify-self: end;    align-self: start;  text-align: right; }
+    .pos-4 { grid-area: 2/1; justify-self: start;  align-self: center; text-align: left;  }
+    .pos-5 { grid-area: 2/2; justify-self: center; align-self: center; text-align: center;}
+    .pos-6 { grid-area: 2/3; justify-self: end;    align-self: center; text-align: right; }
+    .pos-1 { grid-area: 3/1; justify-self: start;  align-self: end;    text-align: left;  }
+    .pos-2 { grid-area: 3/2; justify-self: center; align-self: end;    text-align: center;}
+    .pos-3 { grid-area: 3/3; justify-self: end;    align-self: end;    text-align: right; }
+
+    /* ===== 설정 패널 (S) ===== */
+    #panel {
+      position: fixed; right: 16px; bottom: 16px;
+      width: 300px; max-width: calc(100vw - 32px);
+      background: rgba(18,18,18,0.96);
+      border: 1px solid #333; border-radius: 10px;
+      color: #cfcfcf; font-size: 13px;
+      padding: 14px 16px;
+      display: none;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+    }
+    #panel.on { display: block; }
+    #panel h2 { margin: 0 0 10px; font-size: 14px; font-weight: 600; color: #eee; display: flex; justify-content: space-between; }
+    #panel h2 span { color: #777; font-weight: 400; font-size: 12px; }
+    .row { margin: 12px 0; }
+    .row label { display: block; color: #999; margin-bottom: 6px; font-size: 12px; }
+    .swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+    .swatch {
+      width: 26px; height: 26px; border-radius: 50%;
+      border: 2px solid transparent; cursor: pointer;
+      box-sizing: border-box;
+    }
+    .swatch.sel { border-color: #fff; }
+    .posgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; width: 120px; }
+    .posgrid button {
+      height: 30px; background: #222; border: 1px solid #333; color: #888;
+      border-radius: 4px; cursor: pointer; font-size: 12px;
+    }
+    .posgrid button.sel { background: #444; color: #fff; border-color: #666; }
+    .seg { display: flex; gap: 4px; }
+    .seg button {
+      flex: 1; height: 28px; background: #222; border: 1px solid #333; color: #888;
+      border-radius: 4px; cursor: pointer; font-size: 12px;
+    }
+    .seg button.sel { background: #444; color: #fff; border-color: #666; }
+    .keys { margin-top: 12px; padding-top: 10px; border-top: 1px solid #2a2a2a; color: #777; font-size: 11px; line-height: 1.7; }
+    kbd { background: #2a2a2a; border: 1px solid #444; border-radius: 3px; padding: 0 5px; color: #ddd; font-family: inherit; }
   </style>
 </head>
 <body>
-  <!-- 디지털 시계 (C 키로 토글) -->
-  <div id="clock" aria-hidden="true">
-    <div id="time">00:00:00</div>
-    <div id="date">1970-01-01</div>
+  <div id="grid">
+    <div id="clock" class="pos-5" aria-hidden="true">
+      <div id="time">00:00:00</div>
+      <div id="date">1970-01-01</div>
+    </div>
+  </div>
+
+  <div id="panel" role="dialog" aria-label="설정">
+    <h2>설정 <span>S 로 닫기</span></h2>
+    <div class="row">
+      <label>색상</label>
+      <div class="swatches" id="swatches"></div>
+    </div>
+    <div class="row">
+      <label>위치 <span style="color:#666">(숫자키 1-9, 넘버패드 배열)</span></label>
+      <div class="posgrid" id="posgrid"></div>
+    </div>
+    <div class="row">
+      <label>크기</label>
+      <div class="seg" id="sizes"></div>
+    </div>
+    <div class="row">
+      <label>날짜</label>
+      <div class="seg" id="dateseg"></div>
+    </div>
+    <div class="keys">
+      <kbd>C</kbd> 시계 &nbsp; <kbd>S</kbd> 설정 &nbsp; <kbd>F</kbd> 전체화면 &nbsp; <kbd>1</kbd>-<kbd>9</kbd> 위치 &nbsp; <kbd>Esc</kbd> 닫기
+    </div>
   </div>
 
   <script>
-    // ===== Fullscreen (F) =====
-    async function toggleFullscreen() {
-      try {
-        if (!document.fullscreenElement) {
-          await document.documentElement.requestFullscreen();
-        } else {
-          await document.exitFullscreen();
-        }
-      } catch (_) { /* no-op */ }
-    }
+    // ===== 옵션 =====
+    // 검은 배경에서 눈이 편한 색: 순백/고채도는 피하고 채도·명도를 낮춘 톤 위주
+    const COLORS = [
+      ['#d9d9d9', '소프트 화이트'],
+      ['#8a8a8a', '웜 그레이'],
+      ['#e0b36a', '앰버'],
+      ['#c98a5a', '세피아'],
+      ['#8fc98f', '그린'],
+      ['#6fc3b5', '민트'],
+      ['#7fa9d9', '스카이'],
+      ['#a995c9', '라벤더'],
+      ['#b35050', '딤 레드'],
+    ];
+    const SIZES = [['0.7', '작게'], ['1', '보통'], ['1.4', '크게']];
+    const POS_ORDER = [7, 8, 9, 4, 5, 6, 1, 2, 3];
 
-    // ===== Clock (C) =====
+    const DEFAULTS = { color: '#d9d9d9', pos: 5, scale: '1', date: true };
+    let state = Object.assign({}, DEFAULTS);
+    try { Object.assign(state, JSON.parse(localStorage.getItem('bs.settings') || '{}')); } catch (_) {}
+    function save() { try { localStorage.setItem('bs.settings', JSON.stringify(state)); } catch (_) {} }
+
+    // ===== DOM =====
     const clock = document.getElementById('clock');
     const elTime = document.getElementById('time');
     const elDate = document.getElementById('date');
+    const panel = document.getElementById('panel');
 
-    function pad(n){ return String(n).padStart(2, '0'); }
-    function updateClock(){
-      const d = new Date();
-      const hh = pad(d.getHours());
-      const mm = pad(d.getMinutes());
-      const ss = pad(d.getSeconds());
-      elTime.textContent = `${hh}:${mm}:${ss}`;
-      const yyyy = d.getFullYear();
-      const mo = pad(d.getMonth()+1);
-      const da = pad(d.getDate());
-      elDate.textContent = `${yyyy}-${mo}-${da}`;
+    function applyState() {
+      document.documentElement.style.setProperty('--clock-color', state.color);
+      document.documentElement.style.setProperty('--clock-scale', state.scale);
+      clock.className = 'pos-' + state.pos + (clockVisible ? ' on' : '');
+      elDate.classList.toggle('hidden', !state.date);
+      document.querySelectorAll('#swatches .swatch').forEach(b => b.classList.toggle('sel', b.dataset.v === state.color));
+      document.querySelectorAll('#posgrid button').forEach(b => b.classList.toggle('sel', +b.dataset.v === state.pos));
+      document.querySelectorAll('#sizes button').forEach(b => b.classList.toggle('sel', b.dataset.v === state.scale));
+      document.querySelectorAll('#dateseg button').forEach(b => b.classList.toggle('sel', (b.dataset.v === '1') === state.date));
+      save();
     }
 
+    // 패널 UI 구성
+    const swatches = document.getElementById('swatches');
+    COLORS.forEach(([hex, name]) => {
+      const b = document.createElement('button');
+      b.className = 'swatch'; b.style.background = hex; b.title = name; b.dataset.v = hex;
+      b.onclick = () => { state.color = hex; applyState(); };
+      swatches.appendChild(b);
+    });
+    const posgrid = document.getElementById('posgrid');
+    POS_ORDER.forEach(n => {
+      const b = document.createElement('button');
+      b.textContent = n; b.dataset.v = n;
+      b.onclick = () => { state.pos = n; applyState(); };
+      posgrid.appendChild(b);
+    });
+    const sizes = document.getElementById('sizes');
+    SIZES.forEach(([v, name]) => {
+      const b = document.createElement('button');
+      b.textContent = name; b.dataset.v = v;
+      b.onclick = () => { state.scale = v; applyState(); };
+      sizes.appendChild(b);
+    });
+    const dateseg = document.getElementById('dateseg');
+    [['1', '표시'], ['0', '숨김']].forEach(([v, name]) => {
+      const b = document.createElement('button');
+      b.textContent = name; b.dataset.v = v;
+      b.onclick = () => { state.date = v === '1'; applyState(); };
+      dateseg.appendChild(b);
+    });
+
+    // ===== 시계 =====
+    function pad(n) { return String(n).padStart(2, '0'); }
+    function updateClock() {
+      const d = new Date();
+      elTime.textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+      elDate.textContent = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    }
     let clockVisible = false;
-    let timerId = null;
-    function toggleClock(){
-      clockVisible = !clockVisible;
-      clock.style.display = clockVisible ? 'block' : 'none';
+    let timerId = null, timeoutId = null;
+    function toggleClock(force) {
+      clockVisible = force === undefined ? !clockVisible : !!force;
       clock.setAttribute('aria-hidden', clockVisible ? 'false' : 'true');
+      clearInterval(timerId); clearTimeout(timeoutId);
       if (clockVisible) {
         updateClock();
-        // 다음 초 경계에 맞춰 1초 간격으로 업데이트
-        const drift = 1000 - (Date.now() % 1000);
-        setTimeout(() => {
-          updateClock();
-          clearInterval(timerId);
-          timerId = setInterval(updateClock, 1000);
-        }, drift);
-      } else {
-        clearInterval(timerId);
+        // 다음 초 경계에 맞춰 1초 간격 갱신
+        timeoutId = setTimeout(() => { updateClock(); timerId = setInterval(updateClock, 1000); }, 1000 - (Date.now() % 1000));
       }
+      applyState();
     }
 
-    // ===== Key bindings =====
+    // ===== 설정 패널 =====
+    function togglePanel(force) {
+      const on = force === undefined ? !panel.classList.contains('on') : !!force;
+      panel.classList.toggle('on', on);
+      if (on && !clockVisible) toggleClock(true); // 설정 중엔 시계를 보여줘야 조정이 됨
+    }
+
+    // ===== 전체화면 =====
+    async function toggleFullscreen() {
+      try {
+        if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
+        else await document.exitFullscreen();
+      } catch (_) {}
+    }
+
+    // ===== 키 =====
     window.addEventListener('keydown', (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       const k = e.key.toLowerCase();
-      if (k === 'f') { e.preventDefault(); toggleFullscreen(); }
       if (k === 'c') { e.preventDefault(); toggleClock(); }
+      else if (k === 's') { e.preventDefault(); togglePanel(); }
+      else if (k === 'f') { e.preventDefault(); toggleFullscreen(); }
+      else if (k === 'escape') { togglePanel(false); }
+      else if (/^[1-9]$/.test(k)) { state.pos = +k; applyState(); }
     });
+
+    applyState();
   </script>
 </body>
 </html>
-
