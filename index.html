@@ -10,6 +10,7 @@
     :root {
       --clock-color: #d9d9d9;
       --clock-scale: 1;
+      --timer-scale: 0.7;
       /* 가장자리 여백: 와이드/16:9 어디서든 비슷한 체감이 되도록 vmin 기준 */
       --pad-y: clamp(20px, 5vmin, 90px);
       --pad-x: clamp(24px, 6vmin, 110px);
@@ -57,19 +58,19 @@
     #editremain {
       display: none; margin-top: 0.3em; width: 4.2em; text-align: center;
       background: transparent; border: 0; border-bottom: 2px solid var(--clock-color); color: var(--clock-color);
-      font: inherit; font-weight: 700; font-variant-numeric: tabular-nums; font-size: calc(clamp(32px, 6vmin, 120px) * var(--clock-scale));
+      font: inherit; font-weight: 700; font-variant-numeric: tabular-nums; font-size: calc(clamp(32px, 6vmin, 120px) * var(--timer-scale));
       line-height: 1; padding: 0; outline: none;
     }
     #timer.editing #remain { display: none; }
     #timer.editing #editremain { display: inline-block; }
-    #dial { width: calc(clamp(160px, 36vmin, 560px) * var(--clock-scale)); height: auto; display: block; margin: 0 auto; }
+    #dial { width: calc(clamp(160px, 36vmin, 560px) * var(--timer-scale)); height: auto; display: block; margin: 0 auto; }
     #dial .ring { fill: none; stroke: var(--clock-color); stroke-opacity: 0.18; }
     #dial .tick { stroke: var(--clock-color); stroke-opacity: 0.45; stroke-linecap: round; }
     #dial .tick.major { stroke-opacity: 0.8; }
     #dial .sector { fill: var(--clock-color); fill-opacity: 0.85; }
     #dial .hub { fill: #000; stroke: var(--clock-color); stroke-opacity: 0.5; }
-    #remain { margin-top: 0.3em; font-weight: 700; font-variant-numeric: tabular-nums; font-size: calc(clamp(32px, 6vmin, 120px) * var(--clock-scale)); }
-    #tstate { margin-top: 0.5em; opacity: 0.6; font-size: calc(clamp(12px, 1.8vmin, 32px) * var(--clock-scale)); letter-spacing: 0.08em; min-height: 1em; }
+    #remain { margin-top: 0.3em; font-weight: 700; font-variant-numeric: tabular-nums; font-size: calc(clamp(32px, 6vmin, 120px) * var(--timer-scale)); }
+    #tstate { margin-top: 0.5em; opacity: 0.6; font-size: calc(clamp(12px, 1.8vmin, 32px) * var(--timer-scale)); letter-spacing: 0.08em; min-height: 1em; }
     #timer.running #tstate { opacity: 0.35; }
     #timer.done:not(.editing) #remain { animation: blink 1s steps(2, start) infinite; }
     @keyframes blink { to { visibility: hidden; } }
@@ -204,7 +205,10 @@
       ['#a995c9', '라벤더'],
       ['#b35050', '딤 레드'],
     ];
-    const SIZES = [['0.7', '작게'], ['1', '보통'], ['1.4', '크게']];
+    // 크기 단계: 시계와 타이머의 실제 배율은 다르게 (타이머 다이얼은 같은 배율이면 너무 큼)
+    const SIZES = [['s', '작게'], ['m', '보통'], ['l', '크게'], ['xl', '아주 크게']];
+    const CLOCK_SCALE = { s: 0.7, m: 1, l: 1.4, xl: 1.9 };
+    const TIMER_SCALE = { s: 0.5, m: 0.7, l: 1, xl: 1.4 };
     const POS_ORDER = [1, 2, 3, 4, 5, 6, 7, 8, 9];
     const DURS = [5, 10, 15, 25, 30, 45, 50, 60];
     const SOUNDS = [['bowl', '싱잉볼'], ['wind', '윈드차임'], ['marimba', '마림바'], ['kalimba', '칼림바'], ['bell', '튜블러벨'], ['epiano', '일렉피아노'], ['none', '없음']];
@@ -212,10 +216,11 @@
     const FLASH_DURS = [['3', '3'], ['6', '6'], ['10', '10'], ['20', '20']];
     const REPEATS = [['once', '1회'], ['loop', '재설정까지 반복']];
 
-    const DEFAULTS = { color: '#d9d9d9', pos: 5, scale: '1', date: true,
+    const DEFAULTS = { color: '#d9d9d9', pos: 5, scale: 'm', date: true,
                        dur: 30, sound: 'bowl', vol: 60, flash: '0.5', flashDur: '6', repeat: 'once' };
     let state = Object.assign({}, DEFAULTS);
     try { Object.assign(state, JSON.parse(localStorage.getItem('bs.settings') || '{}')); } catch (_) {}
+    if (!(state.scale in CLOCK_SCALE)) state.scale = { '0.7': 's', '1': 'm', '1.4': 'l' }[state.scale] || 'm'; // 이전 저장값 이전
     if (state.sound === 'chime') state.sound = 'wind';
     if (state.sound === 'wood') state.sound = 'marimba';
     function save() { try { localStorage.setItem('bs.settings', JSON.stringify(state)); } catch (_) {} }
@@ -231,7 +236,8 @@
     function selIn(sel, pred) { document.querySelectorAll(sel).forEach(b => b.classList.toggle('sel', pred(b.dataset.v))); }
     function applyState() {
       document.documentElement.style.setProperty('--clock-color', state.color);
-      document.documentElement.style.setProperty('--clock-scale', state.scale);
+      document.documentElement.style.setProperty('--clock-scale', CLOCK_SCALE[state.scale]);
+      document.documentElement.style.setProperty('--timer-scale', TIMER_SCALE[state.scale]);
       clock.className = 'widget pos-' + state.pos + (mode === 'clock' ? ' on' : '');
       timer.className = 'widget pos-' + state.pos + (mode === 'timer' ? ' on' : '')
                       + (T.running ? ' running' : '') + (T.done ? ' done' : '');
