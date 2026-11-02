@@ -176,7 +176,7 @@
       <div class="seg" id="flashseg"></div>
     </div>
     <div class="row">
-      <label>밝아짐 지속 <small>(초)</small></label>
+      <label>밝아짐 지속 <small>(초 · 음악 주기에 맞춰 조정)</small></label>
       <div class="seg" id="flashdurseg"></div>
     </div>
     <div class="row">
@@ -458,14 +458,42 @@
       if (notif) { try { notif.close(); } catch (_) {} notif = null; }
       if (flashAnim) { flashAnim.cancel(); flashAnim = null; }
     }
-    function fireAlarm() {
-      const len = playSound(state.sound); // 소리 길이(초), 없음이면 0
-      if (!flashAnim || flashAnim.playState !== 'running') runFlash(); // 밝아짐은 진행 중이면 끊지 않음
-      if (state.repeat === 'loop') {
-        // 소리가 끝나면 0.6초 뒤 바로 다시. 소리가 없으면 밝아짐 한 사이클 뒤
-        const period = len ? (len + 0.6) * 1000 : (+state.flashDur + 1) * 1000;
-        alarmTimer = setTimeout(() => { if (T.done) fireAlarm(); }, period);
+    function alarmTiming(soundDuration, flashDuration, loop) {
+      const period = soundDuration ? soundDuration + 0.6 : flashDuration;
+      if (!soundDuration) return { period, flashDuration, flashes: 1 };
+      // 긴 주기에 짧은 주기를 정수 회 넣고, 소리 속도는 유지한 채 밝아짐만 조정한다.
+      if (loop && flashDuration > period) {
+        return { period, flashDuration: period * Math.max(1, Math.round(flashDuration / period)), flashes: 1 };
       }
+      const total = loop ? period : soundDuration;
+      if (!loop && flashDuration > total) return { period, flashDuration, flashes: 1 };
+      const flashes = Math.max(1, Math.round(total / flashDuration));
+      return { period, flashDuration: total / flashes, flashes };
+    }
+    function fireAlarm() {
+      const sound = createSound(state.sound);
+      const ctx = sound.duration ? ensureAudio() : null;
+      const startedAt = performance.now();
+      const audioStart = ctx ? ctx.currentTime + 0.03 : 0;
+      const len = ctx ? playSound(sound, audioStart) : 0; // 실제 마지막 음의 종료 시각으로 계산
+      const loop = state.repeat === 'loop';
+      const timing = alarmTiming(len, +state.flashDur, loop);
+      // playSound의 0.03초 시작 여유를 화면에도 적용한다.
+      runFlash(timing.flashDuration * 1000, loop ? Infinity : timing.flashes, len ? 30 : 0);
+      if (!loop || !len) return;
+
+      const period = timing.period * 1000;
+      let nextAt = startedAt + period;
+      const repeatSound = () => {
+        if (!T.done || state.repeat !== 'loop') { stopAlarm(); return; }
+        const now = performance.now();
+        // 숨겨진 탭에서 늦게 깨어나면 놓친 회차를 건너뛰고 원래 박자로 복귀한다.
+        if (now - nextAt < 100) playSound(sound, audioStart + (nextAt - startedAt) / 1000);
+        nextAt += period;
+        if (nextAt <= now) nextAt = startedAt + (Math.floor((now - startedAt) / period) + 1) * period;
+        alarmTimer = setTimeout(repeatSound, Math.max(0, nextAt - performance.now()));
+      };
+      alarmTimer = setTimeout(repeatSound, Math.max(0, nextAt - performance.now()));
     }
     function onTimerEnd() {
       stopAlarm();
@@ -481,13 +509,12 @@
 
     // ===== 종료 시 밝아짐: 천천히 올라갔다가 머문 뒤 천천히 돌아옴 =====
     let flashAnim = null;
-    function runFlash() {
+    function runFlash(total, iterations = 1, delay = 0) {
       const peak = +state.flash; if (!peak) return;
-      const total = +state.flashDur * 1000;
       if (flashAnim) flashAnim.cancel();
       flashAnim = flash.animate(
         [{ opacity: 0 }, { opacity: peak, offset: 0.4, easing: 'ease-in-out' }, { opacity: peak, offset: 0.6 }, { opacity: 0 }],
-        { duration: total, easing: 'ease-in-out', fill: 'forwards' });
+        { duration: total, iterations, delay, easing: 'ease-in-out', fill: 'forwards' });
     }
 
     // ===== 알림음 (WebAudio 합성, 외부 파일 없음) =====
@@ -533,62 +560,76 @@
     }
     const N = (name) => ({ C4: 261.63, D4: 293.66, E4: 329.63, G4: 392.0, A4: 440.0, C5: 523.25, D5: 587.33, E5: 659.25, G5: 783.99, A5: 880.0, C6: 1046.5, D6: 1174.7, E6: 1318.5, G6: 1568.0 })[name];
 
-    // 각 소리의 실제 울림 길이(초). 반복 간격 계산에 사용
-    const SOUND_LEN = { bowl: 3.8, wind: 3.9, marimba: 1.5, kalimba: 2.1, bell: 3.9, epiano: 2.4 };
-    function playSound(kind) {
-      if (kind === 'none') return 0;
-      const ctx = ensureAudio(); if (!ctx) return 0;
-      const master = ctx.createGain();
-      master.gain.value = Math.pow(state.vol / 100, 1.6) * 0.5; // 음량 커브 (낮은 값에서 더 조용하게)
-      const soft = ctx.createBiquadFilter(); soft.type = 'lowpass'; soft.frequency.value = 7000; // 귀 아픈 고역 정리
-      master.connect(soft).connect(ctx.destination);
-      const t = ctx.currentTime + 0.03;
-
+    // 음 배치를 먼저 정하고 마지막 oscillator 종료까지 계산한다. 무작위 음도 반복 중에는 같은 배치를 쓴다.
+    function createSound(kind) {
+      const sound = { tones: [], clicks: [], reverb: 0, duration: 0 };
+      const addTone = (offset, freq, partials, dur, gain, attack) => {
+        sound.tones.push({ offset, freq, partials, dur, gain, attack });
+        sound.duration = Math.max(sound.duration, offset + dur * Math.max(...partials.map(p => p[2])) + 0.05);
+      };
+      const addClick = (offset, dur, gain, cutoff) => {
+        sound.clicks.push({ offset, dur, gain, cutoff });
+        sound.duration = Math.max(sound.duration, offset + dur);
+      };
       if (kind === 'bowl') {
         // 싱잉볼: 낮은 기음 + 비조화 배음, 긴 여운, 살짝 어긋난 두 기음이 만드는 느린 울렁임
-        const out = reverb(ctx, master, 0.25);
+        sound.reverb = 0.25;
         const p = [[1, 1, 1], [1.004, 0.6, 1], [2.71, 0.35, 0.55], [2.74, 0.2, 0.5], [4.95, 0.12, 0.3], [7.1, 0.05, 0.2]];
-        tone(ctx, out, t, 220, p, 8, 0.9, 0.02);
+        addTone(0, 220, p, 8, 0.9, 0.02);
       } else if (kind === 'wind') {
         // 윈드차임: 펜타토닉 높은 음들이 바람에 흩날리듯 불규칙하게, 뒤로 갈수록 드물고 작게
-        const out = reverb(ctx, master, 0.4);
+        sound.reverb = 0.4;
         const scale = ['C6', 'D6', 'E6', 'G6', 'A5', 'G5', 'E5'];
         const p = [[1, 1, 1], [2.76, 0.25, 0.5], [5.4, 0.08, 0.3]];
         let tt = 0;
         for (let i = 0; i < 9; i++) {
           const f = N(scale[Math.floor(Math.random() * scale.length)]);
-          tone(ctx, out, t + tt, f, p, 2.6, 0.55 * (1 - i / 14), 0.004);
+          addTone(tt, f, p, 2.6, 0.55 * (1 - i / 14), 0.004);
           tt += 0.12 + Math.random() * 0.16 + i * 0.045;
         }
       } else if (kind === 'marimba') {
         // 마림바: 나무의 따뜻한 기음 + 4배 배음(마림바 특유), 짧은 타격 노이즈. 3음 모티프 G4-C5-E5, 마지막은 길게
-        const out = reverb(ctx, master, 0.3);
+        sound.reverb = 0.3;
         const p = [[1, 1, 1], [4, 0.28, 0.35], [9.2, 0.06, 0.15]];
         [['G4', 0, 0.9], ['C5', 0.26, 0.9], ['E5', 0.52, 1.6]].forEach(([n, d, len]) => {
-          tone(ctx, out, t + d, N(n), p, len, 0.8, 0.004);
-          click(ctx, out, t + d, 0.012, 0.25, 2500);
+          addTone(d, N(n), p, len, 0.8, 0.004);
+          addClick(d, 0.012, 0.25, 2500);
         });
       } else if (kind === 'kalimba') {
         // 칼림바: 금속 혀의 맑은 기음과 높은 비조화 배음, 손톱 튕김. 하행 C6-G5-E5-C5
-        const out = reverb(ctx, master, 0.35);
+        sound.reverb = 0.35;
         const p = [[1, 1, 1], [5.4, 0.12, 0.25], [8.9, 0.05, 0.15]];
         [['C6', 0], ['G5', 0.22], ['E5', 0.44], ['C5', 0.66]].forEach(([n, d], i) => {
-          tone(ctx, out, t + d, N(n), p, 1.8 + i * 0.3, 0.65, 0.003);
-          click(ctx, out, t + d, 0.008, 0.18, 5000);
+          addTone(d, N(n), p, 1.8 + i * 0.3, 0.65, 0.003);
+          addClick(d, 0.008, 0.18, 5000);
         });
       } else if (kind === 'bell') {
         // 튜블러벨: 교회 종 느낌의 비조화 배음(짝수배 위에 허밍), 두 번 울림
-        const out = reverb(ctx, master, 0.4);
+        sound.reverb = 0.4;
         const p = [[0.5, 0.5, 1], [1, 1, 0.85], [1.183, 0.5, 0.7], [1.506, 0.45, 0.6], [2.0, 0.35, 0.45], [2.514, 0.25, 0.35], [2.662, 0.15, 0.3], [3.011, 0.1, 0.25]];
-        tone(ctx, out, t, 440, p, 5, 0.55, 0.006);
-        tone(ctx, out, t + 1.4, 440, p, 5, 0.42, 0.006);
+        addTone(0, 440, p, 5, 0.55, 0.006);
+        addTone(1.4, 440, p, 5, 0.42, 0.006);
       } else if (kind === 'epiano') {
         // 일렉피아노: 부드러운 사인 기음에 약한 2·3배 배음, 낮은 음역 C-E-G 아르페지오 후 화음 지속
-        const out = reverb(ctx, master, 0.3);
+        sound.reverb = 0.3;
         const p = [[1, 1, 1], [2, 0.22, 0.5], [3, 0.07, 0.35], [1.002, 0.4, 1]];
-        [['C4', 0], ['E4', 0.18], ['G4', 0.36], ['C5', 0.54]].forEach(([n, d]) => tone(ctx, out, t + d, N(n), p, 3.2, 0.45, 0.012));
+        [['C4', 0], ['E4', 0.18], ['G4', 0.36], ['C5', 0.54]].forEach(([n, d]) => addTone(d, N(n), p, 3.2, 0.45, 0.012));
       }
-      return SOUND_LEN[kind] || 2;
+      return sound;
+    }
+    function playSound(kind, startAt = null) {
+      const sound = typeof kind === 'string' ? createSound(kind) : kind;
+      if (!sound.duration) return 0;
+      const ctx = ensureAudio(); if (!ctx) return 0;
+      const master = ctx.createGain();
+      master.gain.value = Math.pow(state.vol / 100, 1.6) * 0.5; // 음량 커브 (낮은 값에서 더 조용하게)
+      const soft = ctx.createBiquadFilter(); soft.type = 'lowpass'; soft.frequency.value = 7000; // 귀 아픈 고역 정리
+      master.connect(soft).connect(ctx.destination);
+      const t = startAt === null ? ctx.currentTime + 0.03 : Math.max(ctx.currentTime, startAt);
+      const out = reverb(ctx, master, sound.reverb);
+      sound.tones.forEach(n => tone(ctx, out, t + n.offset, n.freq, n.partials, n.dur, n.gain, n.attack));
+      sound.clicks.forEach(n => click(ctx, out, t + n.offset, n.dur, n.gain, n.cutoff));
+      return sound.duration;
     }
 
     // ===== 모드 전환 =====
