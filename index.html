@@ -130,7 +130,7 @@
       </svg>
       <div id="remain" title="클릭: 시간 입력">30:00</div>
       <input id="editremain" type="text" inputmode="numeric" placeholder="25:00" aria-label="남은 시간 입력" />
-      <div id="tstate">SPACE 로 시작</div>
+      <div id="tstate"></div>
     </div>
   </div>
   <div id="flash"></div>
@@ -337,7 +337,7 @@
       const s = Math.ceil(ms / 1000);
       const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
       elRemain.textContent = (h ? h + ':' + pad(m) : String(m)) + ':' + pad(sec);
-      elTState.textContent = T.done ? '끝 · R 또는 SPACE 로 리셋' : T.running ? '' : (ms < T.setMs ? '일시정지 · SPACE 로 계속' : 'SPACE 로 시작 · 다이얼 드래그로 조절');
+      elTState.textContent = T.done ? '끝' : (!T.running && ms < T.setMs ? '일시정지' : '');
     }
     function timerLoop() {
       if (!T.running) return;
