@@ -335,7 +335,7 @@
       const s = Math.ceil(ms / 1000);
       const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
       elRemain.textContent = (h ? h + ':' + pad(m) : String(m)) + ':' + pad(sec);
-      elTState.textContent = T.done ? '끝 · R 또는 SPACE 로 다시' : T.running ? '' : (ms < T.setMs ? '일시정지 · SPACE 로 계속' : 'SPACE 로 시작 · 다이얼 드래그로 조절');
+      elTState.textContent = T.done ? '끝 · R 또는 SPACE 로 리셋' : T.running ? '' : (ms < T.setMs ? '일시정지 · SPACE 로 계속' : 'SPACE 로 시작 · 다이얼 드래그로 조절');
     }
     function timerLoop() {
       if (!T.running) return;
@@ -623,7 +623,14 @@
       else if (k === 'f') { e.preventDefault(); toggleFullscreen(); }
       else if (k === 'escape') { togglePanel(false); }
       else if (/^[1-9]$/.test(k)) { state.pos = +k; applyState(); }
-      else if (k === ' ') { e.preventDefault(); if (mode !== 'timer') setMode('timer'); T.running ? pauseTimer() : startTimer(); }
+      else if (k === ' ') {
+        e.preventDefault();
+        if (e.repeat) return;
+        if (mode !== 'timer') setMode('timer');
+        if (T.done) resetTimer();
+        else if (T.running) pauseTimer();
+        else startTimer();
+      }
       else if (k === 'r') { e.preventDefault(); resetTimer(); }
       else if (k === 'arrowup') { e.preventDefault(); adjustTimer(1); }
       else if (k === 'arrowdown') { e.preventDefault(); adjustTimer(-1); }
