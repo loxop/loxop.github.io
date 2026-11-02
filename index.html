@@ -218,7 +218,7 @@
     const REPEATS = [['once', '1회'], ['loop', '재설정까지 반복']];
 
     const DEFAULTS = { color: '#d9d9d9', pos: 5, scale: 'm', date: true,
-                       dur: 30, sound: 'bowl', vol: 60, flash: '0.5', flashDur: '5', repeat: 'once' };
+                       dur: 30, sound: 'bowl', vol: 60, flash: '0.5', flashDur: '3', repeat: 'once' };
     let state = Object.assign({}, DEFAULTS);
     try { Object.assign(state, JSON.parse(localStorage.getItem('bs.settings') || '{}')); } catch (_) {}
     if (!(state.scale in CLOCK_SCALE)) state.scale = { '0.7': 's', '1': 'm', '1.4': 'l' }[state.scale] || 'm'; // 이전 저장값 이전
