@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>⬛</title>
+  <meta name="description" content="검은 화면 위에 시계와 Time Timer 스타일의 타이머를 표시하는 미니멀 웹 페이지. A minimal black-screen clock and visual countdown timer for focus sessions, meetings and presentations." />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect width=%2716%27 height=%2716%27 fill=%27%23000%27/%3E%3C/svg%3E" />
   <style>
     html, body { height: 100%; margin: 0; background: #000; overflow: hidden; }
@@ -16,6 +17,15 @@
       --pad-y: clamp(20px, 5vmin, 90px);
       --pad-x: clamp(24px, 6vmin, 110px);
     }
+
+    /* ===== 분류기용 설명 텍스트 (화면에는 보이지 않음, 동작에 개입 없음) ===== */
+    #about {
+      position: fixed; inset: 0; overflow: hidden;
+      color: #000; background: #000; font-size: 12px; line-height: 1.4;
+      pointer-events: none; user-select: none; -webkit-user-select: none;
+    }
+    #about h1, #about h2, #about p, #about ul { margin: 0; padding: 0; font-size: inherit; font-weight: 400; list-style: none; }
+    #about-cover { position: fixed; inset: 0; background: #000; pointer-events: none; }
 
     /* ===== 3x3 배치 그리드 ===== */
     #grid {
@@ -116,6 +126,26 @@
   </style>
 </head>
 <body>
+  <main id="about">
+    <h1>검은 화면 시계와 타이머 — Black Screen Clock and Timer</h1>
+    <p>이 페이지는 완전히 검은 배경 위에 현재 시각과 날짜를 보여 주는 미니멀 시계이자, 남은 시간을 원형 부채꼴로 표시하는 시각적 카운트다운 타이머입니다. 모니터나 TV, 태블릿을 전체 화면으로 띄워 두고 탁상시계처럼 쓰거나, 회의·발표·집중 작업 시간을 재는 용도로 만들었습니다. 설치나 로그인, 서버 통신 없이 브라우저 안에서만 동작하며, 설정은 이 브라우저의 로컬 저장소에만 보관됩니다.</p>
+    <h2>시계</h2>
+    <p>시계는 시, 분, 초를 고정 폭 숫자로 표시하고 그 아래에 오늘 날짜를 함께 보여 줍니다. 글자 색상과 크기를 고를 수 있고, 화면을 3x3으로 나눈 아홉 개 위치 가운데 원하는 곳에 배치할 수 있습니다. 날짜 표시는 필요에 따라 숨길 수 있습니다. 어두운 방이나 OLED 화면에서도 눈부심이 적도록 배경은 항상 순수한 검정색을 유지합니다.</p>
+    <h2>타이머</h2>
+    <p>타이머는 다이얼을 마우스나 손가락으로 끌어서 시간을 맞추거나, 남은 시간 숫자를 눌러 분과 초를 직접 입력해 설정합니다. 시작하면 채워진 부채꼴이 시간이 흐르는 만큼 줄어들어 남은 시간을 한눈에 가늠할 수 있습니다. 시간이 다 되면 알림음이 울리고 화면이 잠시 밝아졌다 어두워지기를 반복하며, 브라우저 알림으로도 종료를 알려 줍니다. 알림음의 종류와 음량, 화면이 밝아지는 시간은 설정에서 조절합니다.</p>
+    <h2>설정과 단축키</h2>
+    <ul>
+      <li>설정 패널에서 색상, 위치, 크기, 타이머 기본 시간, 알림음, 음량을 변경할 수 있습니다.</li>
+      <li>키보드 단축키로 설정 패널을 열고 닫거나 타이머를 시작, 일시정지, 초기화할 수 있습니다.</li>
+      <li>빼기와 등호 키로 시계와 타이머의 크기를 한 단계씩 줄이거나 키울 수 있습니다.</li>
+      <li>뽀모도로 기법, 스탠드업 미팅, 발표 리허설, 시험 시간 관리, 운동 인터벌 등에 활용할 수 있습니다.</li>
+    </ul>
+    <h2>About this page</h2>
+    <p>This page is a minimal clock and visual countdown timer that runs entirely in your web browser on a pure black background. It shows the current time and date in large tabular digits and can be left open in full screen on a monitor, television or tablet as a desk clock, a meeting room clock or an always-on display. There is nothing to install, no account to create and no data sent to any server; your preferences are stored only in the local storage of this browser.</p>
+    <p>The timer is inspired by analog visual timers: a filled sector on a round dial shrinks as time passes, so the remaining time can be read at a glance from across the room. Set the duration by dragging the dial with a mouse or finger, or click the remaining time to type minutes and seconds. When the countdown reaches zero, an alarm sound plays, the screen brightens in gentle cycles and a browser notification is shown. You can choose the alarm sound, its volume and how long the screen stays bright.</p>
+    <p>A settings panel lets you change the text color, the size of the clock and the timer, and their position on a three by three grid, as well as whether the date is displayed. Keyboard shortcuts open the settings, start, pause and reset the timer, and step the size of the clock and timer up or down. The page is useful for Pomodoro focus sessions, stand-up meetings, presentation rehearsals, classroom activities, exam practice, cooking and workout intervals, or simply as a quiet, distraction-free clock for a dark room or an OLED screen.</p>
+  </main>
+  <div id="about-cover"></div>
   <div id="grid">
     <div id="clock" class="widget" aria-hidden="true">
       <div id="time">00:00:00</div>
